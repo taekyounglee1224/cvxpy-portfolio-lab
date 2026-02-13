@@ -5,4 +5,4 @@ This repository is a collection of reproducible implementations of Decision-Focu
 
 | Title | Authors | Journal / Venue | Year | Publisher Link | Repo Code | 
 |-------|---------|----------------|------|----------------|----------|
-| Paper Title 1 | A; B | Journal Name | 2026 | [DOI](https://doi.org/xxx) | [code](./src/) | 
+| Integrating prediction in mean-variance portfolio optimization| Andrew Butler & Roy Kwon | Quantitative Finance | 2023 | [DOI](https://arxiv.org/abs/2102.09287) | [code](./src/) | 
