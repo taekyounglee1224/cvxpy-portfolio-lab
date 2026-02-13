@@ -4,5 +4,5 @@ This repository is a collection of reproducible implementations of Decision-Focu
 ## Reference Papers
 
 | Title | Authors | Journal / Venue | Year | Publisher Link | Repo Code | 
-|-------|---------|----------------|------|----------------|----------|-------|
+|-------|---------|----------------|------|----------------|----------|
 | Paper Title 1 | A; B | Journal Name | 2026 | [DOI](https://doi.org/xxx) | [code](./src/) | 
