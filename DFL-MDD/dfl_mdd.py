@@ -244,40 +244,95 @@ def forward_pass(
     }
 
 
-def plot_pnl(bt_results: list, horizon: int, figsize=(12, 6)):
+# def plot_pnl(bt_results: list, horizon: int, figsize=(12, 6)):
  
-    pv = [1.0]  
+#     pv = [1.0]  
+#     rebal_indices = [0]
+
+#     for res in bt_results:
+#         w = res["w_real"]         
+#         base = pv[-1]
+#         pv.extend((base * (1 + w)).tolist())
+#         rebal_indices.append(len(pv) - 1)
+
+#     pv = np.array(pv)
+#     x  = np.arange(len(pv))
+
+ 
+#     running_max = np.maximum.accumulate(pv)
+#     drawdown    = (running_max - pv) / (running_max + 1e-10)
+
+#     total_ret = pv[-1] - 1.0
+#     max_dd    = drawdown.max()
+#     calmar    = total_ret / (max_dd + 1e-10)
+
+#     fig, (ax1, ax2) = plt.subplots(
+#         2, 1, figsize=figsize,
+#         gridspec_kw={"height_ratios": [3, 1]},
+#         sharex=True
+#     )
+
+#     # -- PnL --
+#     ax1.plot(x, pv, color="steelblue", linewidth=1.8, label="DFL Portfolio")
+#     ax1.axhline(1.0, color="gray", linestyle="--", linewidth=0.8, alpha=0.6)
+#     for idx in rebal_indices[1:-1]:   # skip start & end
+#         ax1.axvline(idx, color="orange", linestyle=":", linewidth=1.0,
+#                     alpha=0.7, label="Rebalance" if idx == rebal_indices[1] else "")
+#     ax1.yaxis.set_major_formatter(mtick.FormatStrFormatter("%.3f"))
+#     ax1.set_ylabel("Portfolio Value")
+#     ax1.set_title(
+#         f"Cumulative PnL  |  Return: {total_ret:.2%}  "
+#         f"Max DD: {max_dd:.2%}  Calmar: {calmar:.2f}"
+#     )
+#     ax1.legend(loc="upper left", fontsize=9)
+#     ax1.grid(True, alpha=0.25)
+
+#     # -- Drawdown --
+#     ax2.fill_between(x, -drawdown * 100, 0, color="crimson", alpha=0.45, label="Drawdown")
+#     ax2.set_ylabel("Drawdown (%)")
+#     ax2.set_xlabel("Trading Days (BT Period)")
+#     ax2.yaxis.set_major_formatter(mtick.FormatStrFormatter("%.1f%%"))
+#     ax2.legend(loc="lower left", fontsize=9)
+#     ax2.grid(True, alpha=0.25)
+
+#     plt.tight_layout()
+#     plt.show()
+
+#     print(f"\n── PnL Summary ──")
+#     print(f"  Final Value  : {pv[-1]:.4f}")
+#     print(f"  Total Return : {total_ret:.4%}")
+#     print(f"  Max Drawdown : {max_dd:.4%}")
+#     print(f"  Calmar Ratio : {calmar:.4f}")
+
+
+def plot_pnl(bt_results: list, horizon: int, label: str = "Portfolio", figsize=(12, 6)):
+    pv            = [1.0]
     rebal_indices = [0]
 
     for res in bt_results:
-        w = res["w_real"]         
+        w    = res["w_real"]
         base = pv[-1]
         pv.extend((base * (1 + w)).tolist())
         rebal_indices.append(len(pv) - 1)
 
-    pv = np.array(pv)
-    x  = np.arange(len(pv))
-
- 
+    pv          = np.array(pv)
+    x           = np.arange(len(pv))
     running_max = np.maximum.accumulate(pv)
     drawdown    = (running_max - pv) / (running_max + 1e-10)
-
-    total_ret = pv[-1] - 1.0
-    max_dd    = drawdown.max()
-    calmar    = total_ret / (max_dd + 1e-10)
+    total_ret   = pv[-1] - 1.0
+    max_dd      = drawdown.max()
+    calmar      = total_ret / (max_dd + 1e-10)
 
     fig, (ax1, ax2) = plt.subplots(
         2, 1, figsize=figsize,
         gridspec_kw={"height_ratios": [3, 1]},
-        sharex=True
+        sharex=True,
     )
-
-    # -- PnL --
-    ax1.plot(x, pv, color="steelblue", linewidth=1.8, label="DFL Portfolio")
+    ax1.plot(x, pv, color="steelblue", linewidth=1.8, label=label)   # ← label 사용
     ax1.axhline(1.0, color="gray", linestyle="--", linewidth=0.8, alpha=0.6)
-    for idx in rebal_indices[1:-1]:   # skip start & end
-        ax1.axvline(idx, color="orange", linestyle=":", linewidth=1.0,
-                    alpha=0.7, label="Rebalance" if idx == rebal_indices[1] else "")
+    for idx in rebal_indices[1:-1]:
+        ax1.axvline(idx, color="orange", linestyle=":", linewidth=1.0, alpha=0.7,
+                    label="Rebalance" if idx == rebal_indices[1] else "")
     ax1.yaxis.set_major_formatter(mtick.FormatStrFormatter("%.3f"))
     ax1.set_ylabel("Portfolio Value")
     ax1.set_title(
@@ -287,7 +342,6 @@ def plot_pnl(bt_results: list, horizon: int, figsize=(12, 6)):
     ax1.legend(loc="upper left", fontsize=9)
     ax1.grid(True, alpha=0.25)
 
-    # -- Drawdown --
     ax2.fill_between(x, -drawdown * 100, 0, color="crimson", alpha=0.45, label="Drawdown")
     ax2.set_ylabel("Drawdown (%)")
     ax2.set_xlabel("Trading Days (BT Period)")
@@ -298,7 +352,7 @@ def plot_pnl(bt_results: list, horizon: int, figsize=(12, 6)):
     plt.tight_layout()
     plt.show()
 
-    print(f"\n── PnL Summary ──")
+    print(f"\n── PnL Summary ({label}) ──")
     print(f"  Final Value  : {pv[-1]:.4f}")
     print(f"  Total Return : {total_ret:.4%}")
     print(f"  Max Drawdown : {max_dd:.4%}")
