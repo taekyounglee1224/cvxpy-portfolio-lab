@@ -28,11 +28,11 @@ def train_pto_mvo(pred_model, is_samples, epochs, batch_size, lr):
             print(f"  Epoch {epoch+1:3d}/{epochs}  mse = {np.mean(ep_loss):.6f}")
     return pred_model
 
-def _solve_mvo(mu, Sigma, lam_mvo, x_min, x_max):
-    # MVO 목적함수의 quad_form이 이미 분산 투자를 유도 → 별도 L2 reg 불필요
+def _solve_mvo(mu, Sigma, lam_mvo, x_min, x_max, gamma=0.05):
     m = len(mu)
     x = cp.Variable(m)
-    objective   = cp.Maximize(mu @ x - (lam_mvo / 2) * cp.quad_form(x, Sigma))
+    objective   = cp.Maximize(mu @ x - (lam_mvo / 2) * cp.quad_form(x, Sigma)
+                               - gamma * cp.sum_squares(x))
     constraints = [cp.sum(x) == 1, x >= x_min, x <= x_max]
     prob = cp.Problem(objective, constraints)
     prob.solve(solver=cp.ECOS, verbose=False)
@@ -43,7 +43,8 @@ def _solve_mvo(mu, Sigma, lam_mvo, x_min, x_max):
     return x.value
 
 def backtest_pto_mvo(pred_model, rebal_samples, N, d, C,
-                     lam_mvo=1.0, x_min=0.0, x_max=0.30, stock_names=None):
+                     lam_mvo=1.0, x_min=0.0, x_max=0.30, gamma=0.05,
+                     stock_names=None):
     m     = rebal_samples[0][1].shape[1]
     names = stock_names if stock_names else [f"S{j+1}" for j in range(m)]
     results = []
@@ -60,7 +61,7 @@ def backtest_pto_mvo(pred_model, rebal_samples, N, d, C,
 
         mu    = r_hat.mean(axis=0)
         Sigma = np.cov(r_hat.T) + 1e-6 * np.eye(m)
-        w     = _solve_mvo(mu, Sigma, lam_mvo, x_min, x_max)
+        w     = _solve_mvo(mu, Sigma, lam_mvo, x_min, x_max, gamma)
 
         y_real = np.cumsum(r_np, axis=0)
         w_real = y_real @ w

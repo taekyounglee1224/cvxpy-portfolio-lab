@@ -144,7 +144,7 @@ def compute_max_drawdown(w_real: torch.Tensor) -> torch.Tensor:
 # Step 6. DFL Loss
 # =============================================================================
 def dfl_loss(R_real: torch.Tensor, M_real: torch.Tensor, lam: float) -> torch.Tensor:
-    return (-R_real + lam * M_real).mean()
+    return (lam * (-R_real) + (1 - lam) * M_real).mean()
 
 
 
