@@ -29,6 +29,7 @@ def train_pto_mvo(pred_model, is_samples, epochs, batch_size, lr):
     return pred_model
 
 def _solve_mvo(mu, Sigma, lam_mvo, x_min, x_max):
+    # MVO 목적함수의 quad_form이 이미 분산 투자를 유도 → 별도 L2 reg 불필요
     m = len(mu)
     x = cp.Variable(m)
     objective   = cp.Maximize(mu @ x - (lam_mvo / 2) * cp.quad_form(x, Sigma))
@@ -36,7 +37,9 @@ def _solve_mvo(mu, Sigma, lam_mvo, x_min, x_max):
     prob = cp.Problem(objective, constraints)
     prob.solve(solver=cp.ECOS, verbose=False)
     if x.value is None:
-        return np.ones(m) / m
+        # Fallback: x_max 클램핑 후 재정규화 (pto_mdd fallback과 동일 방식)
+        w = np.clip(np.ones(m) / m, x_min, x_max)
+        return w / w.sum()
     return x.value
 
 def backtest_pto_mvo(pred_model, rebal_samples, N, d, C,
@@ -47,7 +50,7 @@ def backtest_pto_mvo(pred_model, rebal_samples, N, d, C,
 
     print("\n── Backtest : PTO-MVO ──")
     print(f"{'Win':>4}  {'R_real':>8}  {'MDD(%)':>8}  {'Top-3 weights'}")
-    print("-" * 55)
+    print("-" * 65)
 
     pred_model.eval()
     for i, (z_np, r_np) in enumerate(rebal_samples):
@@ -77,14 +80,14 @@ def backtest_pto_mvo(pred_model, rebal_samples, N, d, C,
             "R_real" : R_real,
             "M_real" : M_real,
         })
-        print(f"  {i+1:2d}  {R_real:8.4f}  {M_real:8.4%}  {top3}")
+        print(f"  {i+1:3d}  {R_real:8.4f}  {M_real:8.4%}  {top3}")
 
     R_list = [r["R_real"] for r in results]
     M_list = [r["M_real"] for r in results]
 
     print(f"\n── PTO-MVO Summary ──")
-    print(f"  Avg Daily Return   : {np.mean(R_list):.4f}")
-    print(f"  Avg MDD      : {np.mean(M_list):.4%}")
-    print(f"  Max MDD      : {max(M_list):.4%}")
+    print(f"  Avg Daily Return : {np.mean(R_list):.4f}")
+    print(f"  Avg MDD          : {np.mean(M_list):.4%}")
+    print(f"  Max MDD          : {max(M_list):.4%}")
 
     return results

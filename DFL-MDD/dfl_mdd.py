@@ -64,7 +64,7 @@ def compute_cumulative_path(r: torch.Tensor) -> torch.Tensor:
 # =============================================================================
 # Step 3. Optimization Layer
 # =============================================================================
-def build_optimization_layer(N: int, m: int) -> CvxpyLayer:
+def build_optimization_layer(N: int, m: int, gamma: float = 0.01) -> CvxpyLayer:
     x     = cp.Variable(m,     name="x")
     u     = cp.Variable(N + 1, name="u")
     Y_hat = cp.Parameter((N, m), name="Y_hat")
@@ -72,7 +72,9 @@ def build_optimization_layer(N: int, m: int) -> CvxpyLayer:
     x_min = cp.Parameter(name="x_min")
     x_max = cp.Parameter(name="x_max")
 
-    objective   = cp.Maximize(Y_hat[N - 1] @ x)
+    # L2 regularization: -gamma * ||x||^2 makes the problem strictly concave,
+    # ensuring an interior solution and non-zero KKT gradients for backprop.
+    objective   = cp.Maximize(Y_hat[N - 1] @ x - gamma * cp.sum_squares(x))
     constraints = [u[0] == 0]
     for k in range(1, N + 1):
         y_k = Y_hat[k - 1]
@@ -108,8 +110,9 @@ def solve_portfolio(
                 solver_args={"solve_method": "ECOS"},
             )
         except Exception:
-            # ── 실제 데이터의 극단적 수익률로 Infeasible 발생 시 균등 배분 ──
-            x_star_b = torch.ones(m, dtype=torch.float64) / m
+            x_raw     = torch.softmax(y_hat[b, -1, :], dim=0)
+            x_clamped = torch.clamp(x_raw, min=x_min, max=x_max)
+            x_star_b  = (x_clamped / x_clamped.sum()).double()
         x_stars.append(x_star_b.float())
 
     return torch.stack(x_stars, dim=0)
