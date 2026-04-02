@@ -8,7 +8,7 @@ import cvxpy as cp
 __all__ = ["train_pto_mvo", "backtest_pto_mvo"]
 
 def train_pto_mvo(pred_model, is_samples, epochs, batch_size, lr):
-    optimizer = optim.Adam(pred_model.parameters(), lr=lr)
+    optimizer = optim.Adam(pred_model.parameters(), lr=lr, weight_decay = 1e-4)
     zs      = torch.tensor(np.array([s[0] for s in is_samples]), dtype=torch.float32)
     r_reals = torch.tensor(np.array([s[1] for s in is_samples]), dtype=torch.float32)
     print("\n── PTO-MVO Training (MSE) ──")
@@ -28,10 +28,10 @@ def train_pto_mvo(pred_model, is_samples, epochs, batch_size, lr):
             print(f"  Epoch {epoch+1:3d}/{epochs}  mse = {np.mean(ep_loss):.6f}")
     return pred_model
 
-def _solve_mvo(mu, Sigma, lam_mvo, x_min, x_max, gamma=0.05):
+def _solve_mvo(mu, Sigma, delta, x_min, x_max, gamma=0.05):
     m = len(mu)
     x = cp.Variable(m)
-    objective   = cp.Maximize(mu @ x - (lam_mvo / 2) * cp.quad_form(x, Sigma)
+    objective   = cp.Maximize(mu @ x - (delta / 2) * cp.quad_form(x, Sigma)
                                - gamma * cp.sum_squares(x))
     constraints = [cp.sum(x) == 1, x >= x_min, x <= x_max]
     prob = cp.Problem(objective, constraints)
@@ -43,11 +43,13 @@ def _solve_mvo(mu, Sigma, lam_mvo, x_min, x_max, gamma=0.05):
     return x.value
 
 def backtest_pto_mvo(pred_model, rebal_samples, N, d, C,
-                     lam_mvo=1.0, x_min=0.0, x_max=0.30, gamma=0.05,
+                     delta=1.0, x_min=0.0, x_max=0.30, gamma=0.05,
+                     is_mean=None, is_std=None,
                      stock_names=None):
-    m     = rebal_samples[0][1].shape[1]
-    names = stock_names if stock_names else [f"S{j+1}" for j in range(m)]
-    results = []
+    m        = rebal_samples[0][1].shape[1]
+    lookback = rebal_samples[0][0].shape[0] // m
+    names    = stock_names if stock_names else [f"S{j+1}" for j in range(m)]
+    results  = []
 
     print("\n── Backtest : PTO-MVO ──")
     print(f"{'Win':>4}  {'R_real':>8}  {'MDD(%)':>8}  {'Top-3 weights'}")
@@ -59,9 +61,17 @@ def backtest_pto_mvo(pred_model, rebal_samples, N, d, C,
         with torch.no_grad():
             r_hat = pred_model(z)[0].numpy()
 
-        mu    = r_hat.mean(axis=0)
-        Sigma = np.cov(r_hat.T) + 1e-6 * np.eye(m)
-        w     = _solve_mvo(mu, Sigma, lam_mvo, x_min, x_max, gamma)
+        mu = r_hat.mean(axis=0)
+
+        # Sigma: lookback 실제 수익률로 추정 (표준 MVO)
+        # is_mean/is_std가 제공되면 역정규화 후 sample covariance 사용
+        if is_mean is not None and is_std is not None:
+            z_raw = z_np.reshape(lookback, m) * is_std + is_mean  # 역정규화
+            Sigma = np.cov(z_raw.T) + 1e-4 * np.eye(m)
+        else:
+            Sigma = np.cov(r_hat.T) + 1e-4 * np.eye(m)
+
+        w     = _solve_mvo(mu, Sigma, delta, x_min, x_max, gamma)
 
         y_real = np.cumsum(r_np, axis=0)
         w_real = y_real @ w
@@ -82,13 +92,5 @@ def backtest_pto_mvo(pred_model, rebal_samples, N, d, C,
             "M_real" : M_real,
         })
         print(f"  {i+1:3d}  {R_real:8.4f}  {M_real:8.4%}  {top3}")
-
-    R_list = [r["R_real"] for r in results]
-    M_list = [r["M_real"] for r in results]
-
-    print(f"\n── PTO-MVO Summary ──")
-    print(f"  Avg Daily Return : {np.mean(R_list):.4f}")
-    print(f"  Avg MDD          : {np.mean(M_list):.4%}")
-    print(f"  Max MDD          : {max(M_list):.4%}")
 
     return results

@@ -64,7 +64,8 @@ def compute_cumulative_path(r: torch.Tensor) -> torch.Tensor:
 # =============================================================================
 # Step 3. Optimization Layer
 # =============================================================================
-def build_optimization_layer(N: int, m: int, gamma: float = 0.01) -> CvxpyLayer:
+def build_optimization_layer(N: int, m: int, gamma: float = 0.01,
+                             delta: float = 0.0) -> CvxpyLayer:
     x     = cp.Variable(m,     name="x")
     u     = cp.Variable(N + 1, name="u")
     Y_hat = cp.Parameter((N, m), name="Y_hat")
@@ -72,9 +73,18 @@ def build_optimization_layer(N: int, m: int, gamma: float = 0.01) -> CvxpyLayer:
     x_min = cp.Parameter(name="x_min")
     x_max = cp.Parameter(name="x_max")
 
-    # L2 regularization: -gamma * ||x||^2 makes the problem strictly concave,
-    # ensuring an interior solution and non-zero KKT gradients for backprop.
-    objective   = cp.Maximize(Y_hat[N - 1] @ x - gamma * cp.sum_squares(x))
+    if delta > 0:
+        # risk term: -(delta/2) * ||L^T x||^2  (Cholesky: Sigma = L L^T)
+        # cp.sum_squares(L_p.T @ x) 는 DPP-compliant (파라미터가 선형으로 1회 등장)
+        L_p       = cp.Parameter((m, m), name="L")   # lower-triangular Cholesky factor
+        risk_term = (delta / 2) * cp.sum_squares(L_p.T @ x)
+        objective = cp.Maximize(Y_hat[N - 1] @ x - risk_term
+                                - gamma * cp.sum_squares(x))
+        params    = [Y_hat, n1C, x_min, x_max, L_p]
+    else:
+        objective = cp.Maximize(Y_hat[N - 1] @ x - gamma * cp.sum_squares(x))
+        params    = [Y_hat, n1C, x_min, x_max]
+
     constraints = [u[0] == 0]
     for k in range(1, N + 1):
         y_k = Y_hat[k - 1]
@@ -85,7 +95,7 @@ def build_optimization_layer(N: int, m: int, gamma: float = 0.01) -> CvxpyLayer:
 
     problem = cp.Problem(objective, constraints)
     assert problem.is_dcp(), "Problem is not DCP!"
-    return CvxpyLayer(problem, parameters=[Y_hat, n1C, x_min, x_max], variables=[x, u])
+    return CvxpyLayer(problem, parameters=params, variables=[x, u])
 
 
 
@@ -96,6 +106,7 @@ def solve_portfolio(
     C: float,
     x_min: float,
     x_max: float,
+    Sigma_list=None,          # list of (m,m) torch.Tensor, delta>0일 때만 사용
 ) -> torch.Tensor:
     batch, N, m = y_hat.shape
     n1C_val   = torch.tensor(n1 * C, dtype=torch.float64)
@@ -105,10 +116,19 @@ def solve_portfolio(
     x_stars = []
     for b in range(batch):
         try:
-            x_star_b, _ = opt_layer(
-                y_hat[b].double(), n1C_val, x_min_val, x_max_val,
-                solver_args={"solve_method": "ECOS"},
-            )
+            if Sigma_list is not None:
+                # Cholesky 분해: Sigma = L L^T  (L: lower-triangular)
+                L_b = torch.linalg.cholesky(Sigma_list[b].double())
+                x_star_b, _ = opt_layer(
+                    y_hat[b].double(), n1C_val, x_min_val, x_max_val,
+                    L_b,
+                    solver_args={"solve_method": "ECOS"},
+                )
+            else:
+                x_star_b, _ = opt_layer(
+                    y_hat[b].double(), n1C_val, x_min_val, x_max_val,
+                    solver_args={"solve_method": "ECOS"},
+                )
         except Exception:
             x_raw     = torch.softmax(y_hat[b, -1, :], dim=0)
             x_clamped = torch.clamp(x_raw, min=x_min, max=x_max)
@@ -152,10 +172,27 @@ def dfl_loss(R_real: torch.Tensor, M_real: torch.Tensor, lam: float) -> torch.Te
 # =============================================================================
 # Full Pipeline
 # =============================================================================
-def forward_pass(z, r_real, pred_model, opt_layer, n1, C, d, x_min, x_max, lam):
+def forward_pass(z, r_real, pred_model, opt_layer, n1, C, d, x_min, x_max, lam,
+                 is_mean=None, is_std=None, delta=0.0):
     r_hat  = pred_model(z)
     y_hat  = compute_cumulative_path(r_hat)
-    x_star = solve_portfolio(y_hat, opt_layer, n1, C, x_min, x_max)
+
+    # Sigma 추정: delta>0이고 is_mean/is_std 제공 시 lookback 수익률로 추정
+    Sigma_list = None
+    if delta > 0 and is_mean is not None and is_std is not None:
+        batch = z.shape[0]
+        m_dim = r_hat.shape[2]
+        lb    = z.shape[1] // m_dim
+        is_mean_t = torch.tensor(is_mean, dtype=torch.float32)
+        is_std_t  = torch.tensor(is_std,  dtype=torch.float32)
+        z_raw = z.reshape(batch, lb, m_dim) * is_std_t + is_mean_t  # 역정규화
+        Sigma_list = []
+        for b in range(batch):
+            z_b = z_raw[b].detach().numpy()
+            S   = np.cov(z_b.T) + 1e-4 * np.eye(m_dim)
+            Sigma_list.append(torch.tensor(S, dtype=torch.float64))
+
+    x_star = solve_portfolio(y_hat, opt_layer, n1, C, x_min, x_max, Sigma_list)
     y_real = compute_cumulative_path(r_real)
     w_real = compute_realized_path(x_star, y_real)
     R_real = compute_return(w_real, d, C)
@@ -169,10 +206,13 @@ def forward_pass(z, r_real, pred_model, opt_layer, n1, C, d, x_min, x_max, lam):
 # Backtest
 # =============================================================================
 def backtest_dfl_mdd(pred_model, opt_layer, rebal_samples, N, d, C,
-                     n1=0.10, x_min=0.0, x_max=0.30, stock_names=None):
-    m     = rebal_samples[0][1].shape[1]
-    names = stock_names if stock_names else [f"S{j+1}" for j in range(m)]
-    results = []
+                     n1=0.10, x_min=0.0, x_max=0.30,
+                     delta=0.0, is_mean=None, is_std=None,
+                     stock_names=None):
+    m        = rebal_samples[0][1].shape[1]
+    lookback = rebal_samples[0][0].shape[0] // m
+    names    = stock_names if stock_names else [f"S{j+1}" for j in range(m)]
+    results  = []
 
     print("\n── Backtest : DFL-MDD ──")
     print(f"{'Win':>4}  {'R_real':>8}  {'MDD(%)':>8}  {'Top-3 weights'}")
@@ -180,7 +220,6 @@ def backtest_dfl_mdd(pred_model, opt_layer, rebal_samples, N, d, C,
 
     pred_model.eval()
 
-    # ── tqdm: 실제 데이터 143회 리밸런싱 대응 ──
     for i, (z_np, r_np) in enumerate(tqdm(rebal_samples, desc="Backtesting")):
         z      = torch.tensor(z_np[None], dtype=torch.float32)
         r_real = torch.tensor(r_np[None], dtype=torch.float32)
@@ -188,8 +227,16 @@ def backtest_dfl_mdd(pred_model, opt_layer, rebal_samples, N, d, C,
         with torch.no_grad():
             r_hat = pred_model(z)
 
+        # Sigma 추정: delta>0이고 is_mean/is_std 제공 시 lookback 수익률로 추정
+        Sigma_list = None
+        if delta > 0 and is_mean is not None and is_std is not None:
+            z_raw = z_np.reshape(lookback, m) * is_std + is_mean  # 역정규화
+            S     = np.cov(z_raw.T) + 1e-4 * np.eye(m)
+            Sigma_list = [torch.tensor(S, dtype=torch.float64)]
+
         y_hat  = compute_cumulative_path(r_hat)
-        x_star = solve_portfolio(y_hat.detach(), opt_layer, n1, C, x_min, x_max)
+        x_star = solve_portfolio(y_hat.detach(), opt_layer, n1, C, x_min, x_max,
+                                 Sigma_list)
         y_real = compute_cumulative_path(r_real)
         w_real = compute_realized_path(x_star, y_real)[0].numpy()
 
@@ -209,9 +256,6 @@ def backtest_dfl_mdd(pred_model, opt_layer, rebal_samples, N, d, C,
             "M_real" : M_real,
         })
         print(f"  {i+1:3d}  {R_real:8.4f}  {M_real:8.4%}  {top3}")
-
-    R_list = [r["R_real"] for r in results]
-    M_list = [r["M_real"] for r in results]
 
     return results
 

@@ -9,7 +9,7 @@ __all__ = ["train_pto_mdd", "backtest_pto_mdd"]
 
 
 def train_pto_mdd(pred_model, is_samples, epochs, batch_size, lr):
-    optimizer = optim.Adam(pred_model.parameters(), lr=lr)
+    optimizer = optim.Adam(pred_model.parameters(), lr=lr, weight_decay = 1e-4)
     zs      = torch.tensor(np.array([s[0] for s in is_samples]), dtype=torch.float32)
     r_reals = torch.tensor(np.array([s[1] for s in is_samples]), dtype=torch.float32)
     print("\n── PTO-MDD Training (MSE) ──")
@@ -30,11 +30,15 @@ def train_pto_mdd(pred_model, is_samples, epochs, batch_size, lr):
     return pred_model
 
 
-def _solve_mdd_lp(Y_hat, N, m, n1, C, x_min, x_max, gamma=0.05):
+def _solve_mdd_lp(Y_hat, N, m, n1, C, x_min, x_max, gamma=0.0,
+                  Sigma=None, delta=0.0):
     x = cp.Variable(m)
     u = cp.Variable(N + 1)
-    # L2 regularization: DFL-MDD와 동일하게 분산 투자 유도
-    objective   = cp.Maximize(Y_hat[N - 1] @ x - gamma * cp.sum_squares(x))
+
+    # 목적함수: 예측 수익률 - risk term - L2 정규화
+    risk_term = (delta / 2) * cp.quad_form(x, Sigma) if (Sigma is not None and delta > 0) else 0
+    objective = cp.Maximize(Y_hat[N - 1] @ x - risk_term - gamma * cp.sum_squares(x))
+
     constraints = [u[0] == 0]
     for k in range(1, N + 1):
         y_k = Y_hat[k - 1]
@@ -45,18 +49,20 @@ def _solve_mdd_lp(Y_hat, N, m, n1, C, x_min, x_max, gamma=0.05):
     prob = cp.Problem(objective, constraints)
     prob.solve(solver=cp.ECOS, verbose=False)
     if x.value is None:
-        # Fallback: x_max 클램핑 후 재정규화 (DFL-MDD fallback과 동일 방식)
+        # Fallback: x_max 클램핑 후 재정규화
         w = np.clip(np.ones(m) / m, x_min, x_max)
         return w / w.sum()
     return x.value
 
 
 def backtest_pto_mdd(pred_model, rebal_samples, N, d, C,
-                     n1=0.50, x_min=0.0, x_max=0.30, gamma=0.05,
+                     n1=0.50, x_min=0.0, x_max=1.0, gamma=0.0,
+                     delta=0.0, is_mean=None, is_std=None,
                      stock_names=None):
-    m     = rebal_samples[0][1].shape[1]
-    names = stock_names if stock_names else [f"S{j+1}" for j in range(m)]
-    results = []
+    m        = rebal_samples[0][1].shape[1]
+    lookback = rebal_samples[0][0].shape[0] // m
+    names    = stock_names if stock_names else [f"S{j+1}" for j in range(m)]
+    results  = []
 
     print("\n── Backtest : PTO-MDD ──")
     print(f"{'Win':>4}  {'R_real':>8}  {'MDD(%)':>8}  {'Top-3 weights'}")
@@ -68,8 +74,15 @@ def backtest_pto_mdd(pred_model, rebal_samples, N, d, C,
         with torch.no_grad():
             r_hat = pred_model(z)[0].numpy()
 
+        # Sigma: lookback 실제 수익률 기반 (delta > 0일 때만 사용)
+        Sigma = None
+        if delta > 0 and is_mean is not None and is_std is not None:
+            z_raw = z_np.reshape(lookback, m) * is_std + is_mean  # 역정규화
+            Sigma = np.cov(z_raw.T) + 1e-4 * np.eye(m)
+
         Y_hat  = np.cumsum(r_hat, axis=0)
-        w      = _solve_mdd_lp(Y_hat, N, m, n1, C, x_min, x_max, gamma)
+        w      = _solve_mdd_lp(Y_hat, N, m, n1, C, x_min, x_max, gamma,
+                               Sigma=Sigma, delta=delta)
         y_real = np.cumsum(r_np, axis=0)
         w_real = y_real @ w                             # (N,)
 
@@ -88,13 +101,5 @@ def backtest_pto_mdd(pred_model, rebal_samples, N, d, C,
             "M_real" : M_real,
         })
         print(f"  {i+1:3d}  {R_real:8.4f}  {M_real:8.4%}  {top3}")
-
-    R_list = [r["R_real"] for r in results]
-    M_list = [r["M_real"] for r in results]
-
-    print(f"\n── PTO-MDD Summary ──")
-    print(f"  Avg Daily Return : {np.mean(R_list):.4f}")
-    print(f"  Avg MDD          : {np.mean(M_list):.4%}")
-    print(f"  Max MDD          : {max(M_list):.4%}")
 
     return results
