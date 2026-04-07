@@ -24,6 +24,7 @@ __all__ = [
     "compute_realized_path",
     "compute_return",
     "compute_max_drawdown",
+    "compute_sharpe",
     "dfl_loss",
     "forward_pass",
     "backtest_dfl_mdd",
@@ -158,13 +159,49 @@ def compute_max_drawdown(w_real: torch.Tensor) -> torch.Tensor:
     drawdown       = running_max - w_real
     return torch.max(drawdown, dim=1).values
 
+def compute_sharpe(
+    x_star: torch.Tensor,
+    r_real: torch.Tensor,
+    Sigma_list=None,
+    eps: float = 1e-8,
+) -> torch.Tensor:
+    """
+    Per-sample Sharpe ratio.
+
+    x_star     : (batch, m)       — portfolio weights
+    r_real     : (batch, N, m)    — per-period asset returns
+    Sigma_list : list of (m, m) float64 tensors estimated from lookback window.
+                 When provided, portfolio variance = x^T Σ x.
+                 When None, falls back to sample std of realised portfolio returns.
+    """
+    # Per-period portfolio returns: shape (batch, N)
+    p_real = torch.einsum("bj, btj -> bt", x_star, r_real)
+    mu_p   = p_real.mean(dim=1)   # (batch,)
+
+    sharpes = []
+    for b in range(x_star.shape[0]):
+        if Sigma_list is not None:  
+            x_b   = x_star[b].double()
+            S_b   = Sigma_list[b]                           # (m, m) float64
+            var_p = x_b @ S_b @ x_b                        # scalar
+            sig_p = torch.sqrt(var_p.clamp(min=0).float() + eps)
+        else:
+            sig_p = p_real[b].std(unbiased=False) + eps
+        sharpes.append(mu_p[b] / sig_p)
+
+    return torch.stack(sharpes)   # (batch,)
+
 
 
 # =============================================================================
-# Step 6. DFL Loss
+# Step 6. DFL Loss  (Sharpe-MDD)
 # =============================================================================
-def dfl_loss(R_real: torch.Tensor, M_real: torch.Tensor, lam: float) -> torch.Tensor:
-    return (lam * (-R_real) + (1 - lam) * M_real).mean()
+def dfl_loss(Sharpe: torch.Tensor, M_real: torch.Tensor, lam: float) -> torch.Tensor:
+    """
+    lam * (-Sharpe)  +  (1 - lam) * MDD
+    Maximise Sharpe while penalising max drawdown.
+    """
+    return (lam * (-Sharpe) + (1 - lam) * M_real).mean()
 
 
 
@@ -177,30 +214,33 @@ def forward_pass(z, r_real, pred_model, opt_layer, n1, C, d, x_min, x_max, lam,
     r_hat  = pred_model(z)
     y_hat  = compute_cumulative_path(r_hat)
 
-    # Sigma 추정: delta>0이고 is_mean/is_std 제공 시 lookback 수익률로 추정
+    # Sigma 추정: is_mean/is_std 제공 시 항상 추정 (Sharpe 및 delta 공통 사용)
     Sigma_list = None
-    if delta > 0 and is_mean is not None and is_std is not None:
-        batch = z.shape[0]
-        m_dim = r_hat.shape[2]
-        lb    = z.shape[1] // m_dim
+    if is_mean is not None and is_std is not None:
+        batch     = z.shape[0]
+        m_dim     = r_hat.shape[2]
+        lb        = z.shape[1] // m_dim
         is_mean_t = torch.tensor(is_mean, dtype=torch.float32)
         is_std_t  = torch.tensor(is_std,  dtype=torch.float32)
-        z_raw = z.reshape(batch, lb, m_dim) * is_std_t + is_mean_t  # 역정규화
+        z_raw     = z.reshape(batch, lb, m_dim) * is_std_t + is_mean_t   # 역정규화
         Sigma_list = []
         for b in range(batch):
             z_b = z_raw[b].detach().numpy()
             S   = np.cov(z_b.T) + 1e-4 * np.eye(m_dim)
             Sigma_list.append(torch.tensor(S, dtype=torch.float64))
 
-    x_star = solve_portfolio(y_hat, opt_layer, n1, C, x_min, x_max, Sigma_list)
+    # solve_portfolio에는 delta>0일 때만 Sigma 전달 (최적화 목적함수용)
+    x_star = solve_portfolio(y_hat, opt_layer, n1, C, x_min, x_max,
+                             Sigma_list if delta > 0 else None)
     y_real = compute_cumulative_path(r_real)
     w_real = compute_realized_path(x_star, y_real)
     R_real = compute_return(w_real, d, C)
     M_real = compute_max_drawdown(w_real)
-    loss   = dfl_loss(R_real, M_real, lam)
+    Sharpe = compute_sharpe(x_star, r_real, Sigma_list)   # lookback Σ 사용
+    loss   = dfl_loss(Sharpe, M_real, lam)
     return {"r_hat": r_hat, "y_hat": y_hat, "x_star": x_star,
             "y_real": y_real, "w_real": w_real,
-            "R_real": R_real, "M_real": M_real, "loss": loss}
+            "R_real": R_real, "M_real": M_real, "Sharpe": Sharpe, "loss": loss}
 
 # =============================================================================
 # Backtest
@@ -215,8 +255,8 @@ def backtest_dfl_mdd(pred_model, opt_layer, rebal_samples, N, d, C,
     results  = []
 
     print("\n── Backtest : DFL-MDD ──")
-    print(f"{'Win':>4}  {'R_real':>8}  {'MDD(%)':>8}  {'Top-3 weights'}")
-    print("-" * 65)
+    print(f"{'Win':>4}  {'R_real':>8}  {'Sharpe':>8}  {'MDD(%)':>8}  {'Top-3 weights'}")
+    print("-" * 75)
 
     pred_model.eval()
 
@@ -227,16 +267,16 @@ def backtest_dfl_mdd(pred_model, opt_layer, rebal_samples, N, d, C,
         with torch.no_grad():
             r_hat = pred_model(z)
 
-        # Sigma 추정: delta>0이고 is_mean/is_std 제공 시 lookback 수익률로 추정
+        # Sigma 추정: is_mean/is_std 제공 시 항상 추정
         Sigma_list = None
-        if delta > 0 and is_mean is not None and is_std is not None:
-            z_raw = z_np.reshape(lookback, m) * is_std + is_mean  # 역정규화
-            S     = np.cov(z_raw.T) + 1e-4 * np.eye(m)
+        if is_mean is not None and is_std is not None:
+            z_raw      = z_np.reshape(lookback, m) * is_std + is_mean   # 역정규화
+            S          = np.cov(z_raw.T) + 1e-4 * np.eye(m)
             Sigma_list = [torch.tensor(S, dtype=torch.float64)]
 
         y_hat  = compute_cumulative_path(r_hat)
         x_star = solve_portfolio(y_hat.detach(), opt_layer, n1, C, x_min, x_max,
-                                 Sigma_list)
+                                 Sigma_list if delta > 0 else None)
         y_real = compute_cumulative_path(r_real)
         w_real = compute_realized_path(x_star, y_real)[0].numpy()
 
@@ -246,6 +286,9 @@ def backtest_dfl_mdd(pred_model, opt_layer, rebal_samples, N, d, C,
         running_max = np.maximum.accumulate(window_pv)
         M_real      = np.max((running_max - window_pv) / (running_max + 1e-10))
 
+        # Sharpe: lookback Σ 기반 포트폴리오 분산
+        sharpe_val = compute_sharpe(x_star, r_real, Sigma_list).item()
+
         w    = x_star[0].numpy()
         top3 = {names[j]: round(w[j], 3) for j in np.argsort(w)[-3:][::-1]}
         results.append({
@@ -254,8 +297,9 @@ def backtest_dfl_mdd(pred_model, opt_layer, rebal_samples, N, d, C,
             "w_real" : w_real,
             "R_real" : R_real,
             "M_real" : M_real,
+            "Sharpe" : sharpe_val,
         })
-        print(f"  {i+1:3d}  {R_real:8.4f}  {M_real:8.4%}  {top3}")
+        print(f"  {i+1:3d}  {R_real:8.4f}  {sharpe_val:8.4f}  {M_real:8.4%}  {top3}")
 
     return results
 
