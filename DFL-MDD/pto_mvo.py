@@ -7,16 +7,26 @@ import cvxpy as cp
 
 __all__ = ["train_pto_mvo", "backtest_pto_mvo"]
 
-def train_pto_mvo(pred_model, is_samples, epochs, batch_size, lr):
-    optimizer = optim.Adam(pred_model.parameters(), lr=lr, weight_decay = 1e-4)
-    zs      = torch.tensor(np.array([s[0] for s in is_samples]), dtype=torch.float32)
-    r_reals = torch.tensor(np.array([s[1] for s in is_samples]), dtype=torch.float32)
-    print("\n── PTO-MVO Training (MSE) ──")
+def train_pto_mvo(pred_model, train_samples, val_samples=None,
+                  epochs=50, batch_size=16, lr=1e-4, patience=10):
+    optimizer = optim.Adam(pred_model.parameters(), lr=lr, weight_decay=1e-4)
+    zs      = torch.tensor(np.array([s[0] for s in train_samples]), dtype=torch.float32)
+    r_reals = torch.tensor(np.array([s[1] for s in train_samples]), dtype=torch.float32)
+
+    if val_samples is not None:
+        zs_val = torch.tensor(np.array([s[0] for s in val_samples]), dtype=torch.float32)
+        rs_val = torch.tensor(np.array([s[1] for s in val_samples]), dtype=torch.float32)
+
+    best_val_loss = float("inf")
+    best_state    = None
+    no_improve    = 0
+
+    print("\n── PTO-MVO Training (MSE + Val Early Stopping) ──")
     pred_model.train()
     for epoch in range(epochs):
-        perm    = torch.randperm(len(is_samples))
+        perm    = torch.randperm(len(train_samples))
         ep_loss = []
-        for i in range(0, len(is_samples), batch_size):
+        for i in range(0, len(train_samples), batch_size):
             idx = perm[i : i + batch_size]
             optimizer.zero_grad()
             r_hat = pred_model(zs[idx])
@@ -24,8 +34,37 @@ def train_pto_mvo(pred_model, is_samples, epochs, batch_size, lr):
             loss.backward()
             optimizer.step()
             ep_loss.append(loss.item())
-        if (epoch + 1) % 5 == 0 or epoch == 0:
-            print(f"  Epoch {epoch+1:3d}/{epochs}  mse = {np.mean(ep_loss):.6f}")
+
+        tr_loss = np.mean(ep_loss)
+
+        if val_samples is not None:
+            pred_model.eval()
+            with torch.no_grad():
+                val_loss = F.mse_loss(pred_model(zs_val), rs_val).item()
+            pred_model.train()
+
+            if val_loss < best_val_loss:
+                best_val_loss = val_loss
+                best_state    = {k: v.clone() for k, v in pred_model.state_dict().items()}
+                no_improve    = 0
+                marker = "*"
+            else:
+                no_improve += 1
+                marker = f"({no_improve}/{patience})"
+
+            if (epoch + 1) % 5 == 0 or epoch == 0:
+                print(f"  Epoch {epoch+1:3d}/{epochs}  train={tr_loss:.6f}  val={val_loss:.6f}  {marker}")
+
+            if no_improve >= patience:
+                print(f"  Early stopping at epoch {epoch+1}  (best val={best_val_loss:.6f})")
+                break
+        else:
+            if (epoch + 1) % 5 == 0 or epoch == 0:
+                print(f"  Epoch {epoch+1:3d}/{epochs}  mse = {tr_loss:.6f}")
+
+    if best_state is not None:
+        pred_model.load_state_dict(best_state)
+
     return pred_model
 
 def _solve_mvo(mu, Sigma, delta, x_min, x_max, gamma=0.05):

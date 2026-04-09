@@ -27,6 +27,7 @@ __all__ = [
     "compute_sharpe",
     "dfl_loss",
     "forward_pass",
+    "train_dfl_mdd",
     "backtest_dfl_mdd",
     "plot_pnl",
 ]
@@ -241,6 +242,94 @@ def forward_pass(z, r_real, pred_model, opt_layer, n1, C, d, x_min, x_max, lam,
     return {"r_hat": r_hat, "y_hat": y_hat, "x_star": x_star,
             "y_real": y_real, "w_real": w_real,
             "R_real": R_real, "M_real": M_real, "Sharpe": Sharpe, "loss": loss}
+
+# =============================================================================
+# Train (DFL-MDD) — Val Early Stopping
+# =============================================================================
+def train_dfl_mdd(pred_model, opt_layer, train_samples, val_samples=None,
+                  epochs=50, batch_size=16, lr=1e-4,
+                  n1=0.10, C=1.0, d=1.0, x_min=0.0, x_max=0.30, lam=0.3,
+                  is_mean=None, is_std=None, delta=0.0,
+                  patience=10):
+    """
+    DFL-MDD 학습 함수.
+    val_samples가 주어지면 매 epoch val loss를 계산하여 early stopping 수행.
+    val_samples는 리밸런싱 간격으로 서브샘플링된 것을 권장 (속도).
+    """
+    optimizer = optim.Adam(pred_model.parameters(), lr=lr, weight_decay=1e-4)
+
+    zs_tr = torch.tensor(np.array([s[0] for s in train_samples]), dtype=torch.float32)
+    rs_tr = torch.tensor(np.array([s[1] for s in train_samples]), dtype=torch.float32)
+
+    if val_samples is not None:
+        zs_val = torch.tensor(np.array([s[0] for s in val_samples]), dtype=torch.float32)
+        rs_val = torch.tensor(np.array([s[1] for s in val_samples]), dtype=torch.float32)
+
+    best_val_loss = float("inf")
+    best_state    = None
+    no_improve    = 0
+
+    print("\n── DFL-MDD Training (with Val Early Stopping) ──")
+
+    for epoch in range(epochs):
+        pred_model.train()
+        perm    = torch.randperm(len(train_samples))
+        ep_loss = []
+        for i in range(0, len(train_samples), batch_size):
+            idx = perm[i : i + batch_size]
+            z_b, r_b = zs_tr[idx], rs_tr[idx]
+            optimizer.zero_grad()
+            result = forward_pass(
+                z_b, r_b, pred_model, opt_layer,
+                n1, C, d, x_min, x_max, lam,
+                is_mean=is_mean, is_std=is_std, delta=delta,
+            )
+            result["loss"].backward()
+            optimizer.step()
+            ep_loss.append(result["loss"].item())
+
+        tr_loss = np.mean(ep_loss)
+
+        if val_samples is not None:
+            pred_model.eval()
+            val_losses = []
+            for j in range(0, len(val_samples), batch_size):
+                z_v = zs_val[j : j + batch_size]
+                r_v = rs_val[j : j + batch_size]
+                with torch.no_grad():
+                    res = forward_pass(
+                        z_v, r_v, pred_model, opt_layer,
+                        n1, C, d, x_min, x_max, lam,
+                        is_mean=is_mean, is_std=is_std, delta=delta,
+                    )
+                val_losses.append(res["loss"].item())
+
+            val_loss = np.mean(val_losses)
+
+            if val_loss < best_val_loss:
+                best_val_loss = val_loss
+                best_state    = {k: v.clone() for k, v in pred_model.state_dict().items()}
+                no_improve    = 0
+                marker = "*"
+            else:
+                no_improve += 1
+                marker = f"({no_improve}/{patience})"
+
+            if (epoch + 1) % 5 == 0 or epoch == 0:
+                print(f"  Epoch {epoch+1:3d}/{epochs}  train={tr_loss:.6f}  val={val_loss:.6f}  {marker}")
+
+            if no_improve >= patience:
+                print(f"  Early stopping at epoch {epoch+1}  (best val={best_val_loss:.6f})")
+                break
+        else:
+            if (epoch + 1) % 5 == 0 or epoch == 0:
+                print(f"  Epoch {epoch+1:3d}/{epochs}  loss = {tr_loss:.6f}")
+
+    if best_state is not None:
+        pred_model.load_state_dict(best_state)
+
+    return pred_model
+
 
 # =============================================================================
 # Backtest
