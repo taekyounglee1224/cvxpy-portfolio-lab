@@ -250,13 +250,18 @@ def train_dfl_mdd(pred_model, opt_layer, train_samples, val_samples=None,
                   epochs=50, batch_size=16, lr=1e-4,
                   n1=0.10, C=1.0, d=1.0, x_min=0.0, x_max=0.30, lam=0.3,
                   is_mean=None, is_std=None, delta=0.0,
-                  patience=10):
+                  patience=10, lr_patience=10, lr_factor=0.5):
     """
     DFL-MDD 학습 함수.
     val_samples가 주어지면 매 epoch val loss를 계산하여 early stopping 수행.
     val_samples는 리밸런싱 간격으로 서브샘플링된 것을 권장 (속도).
+    lr_patience : ReduceLROnPlateau patience (val loss 정체 시 lr 감소)
+    lr_factor   : lr 감소 비율 (default 0.5 → lr을 절반으로)
     """
     optimizer = optim.Adam(pred_model.parameters(), lr=lr, weight_decay=1e-4)
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(
+        optimizer, mode="min", factor=lr_factor, patience=lr_patience
+    )
 
     zs_tr = torch.tensor(np.array([s[0] for s in train_samples]), dtype=torch.float32)
     rs_tr = torch.tensor(np.array([s[1] for s in train_samples]), dtype=torch.float32)
@@ -269,7 +274,7 @@ def train_dfl_mdd(pred_model, opt_layer, train_samples, val_samples=None,
     best_state    = None
     no_improve    = 0
 
-    print("\n── DFL-MDD Training (with Val Early Stopping) ──")
+    print("\n── DFL-MDD Training (with Val Early Stopping + LR Scheduler) ──")
 
     for epoch in range(epochs):
         pred_model.train()
@@ -305,6 +310,8 @@ def train_dfl_mdd(pred_model, opt_layer, train_samples, val_samples=None,
                 val_losses.append(res["loss"].item())
 
             val_loss = np.mean(val_losses)
+            scheduler.step(val_loss)
+            current_lr = optimizer.param_groups[0]["lr"]
 
             if val_loss < best_val_loss:
                 best_val_loss = val_loss
@@ -316,7 +323,7 @@ def train_dfl_mdd(pred_model, opt_layer, train_samples, val_samples=None,
                 marker = f"({no_improve}/{patience})"
 
             if (epoch + 1) % 5 == 0 or epoch == 0:
-                print(f"  Epoch {epoch+1:3d}/{epochs}  train={tr_loss:.6f}  val={val_loss:.6f}  {marker}")
+                print(f"  Epoch {epoch+1:3d}/{epochs}  train={tr_loss:.6f}  val={val_loss:.6f}  lr={current_lr:.2e}  {marker}")
 
             if no_improve >= patience:
                 print(f"  Early stopping at epoch {epoch+1}  (best val={best_val_loss:.6f})")
