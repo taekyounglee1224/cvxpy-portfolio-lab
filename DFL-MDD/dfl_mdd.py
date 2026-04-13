@@ -342,6 +342,7 @@ def backtest_dfl_mdd(pred_model, opt_layer, rebal_samples, N, d, C,
     lookback = rebal_samples[0][0].shape[0] // m
     names    = stock_names if stock_names else [f"S{j+1}" for j in range(m)]
     results  = []
+    cum_pv   = [1.0]   # 누적 portfolio value (이미지 MDD와 동일 기준)
 
     print("\n── Backtest : DFL-MDD ──")
     print(f"{'Win':>4}  {'R_real':>8}  {'Sharpe':>8}  {'MDD(%)':>8}  {'Top-3 weights'}")
@@ -371,9 +372,11 @@ def backtest_dfl_mdd(pred_model, opt_layer, rebal_samples, N, d, C,
 
         R_real = w_real[-1] / (d * C)
 
-        window_pv   = 1.0 * (1 + w_real)
-        running_max = np.maximum.accumulate(window_pv)
-        M_real      = np.max((running_max - window_pv) / (running_max + 1e-10))
+        base    = cum_pv[-1]
+        cum_pv.extend((base * (1 + w_real)).tolist())
+        pv_arr  = np.array(cum_pv)
+        run_max = np.maximum.accumulate(pv_arr)
+        M_real  = np.max((run_max - pv_arr) / (run_max + 1e-10))
 
         # Sharpe: lookback Σ 기반 포트폴리오 분산
         sharpe_val = compute_sharpe(x_star, r_real, Sigma_list).item()
