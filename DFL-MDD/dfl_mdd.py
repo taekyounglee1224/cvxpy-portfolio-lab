@@ -10,7 +10,7 @@ from cvxpylayers.torch import CvxpyLayer
 import random
 from dataclasses import dataclass
 from typing import Dict, Tuple
-from tqdm import tqdm
+from tqdm.auto import tqdm
 import itertools
 import torch.nn as nn
 import torch.optim as optim
