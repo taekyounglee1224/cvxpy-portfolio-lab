@@ -97,7 +97,7 @@ def _solve_mdd_lp(Y_hat, N, m, n1, C, x_min, x_max, gamma=0.0,
 def backtest_pto_mdd(pred_model, rebal_samples, N, d, C,
                      n1=0.50, x_min=0.0, x_max=1.0, gamma=0.0,
                      delta=0.0, is_mean=None, is_std=None,
-                     stock_names=None):
+                     stock_names=None, rebal=None):
     m        = rebal_samples[0][1].shape[1]
     lookback = rebal_samples[0][0].shape[0] // m
     names    = stock_names if stock_names else [f"S{j+1}" for j in range(m)]
@@ -126,13 +126,19 @@ def backtest_pto_mdd(pred_model, rebal_samples, N, d, C,
         y_real = np.cumsum(r_np, axis=0)
         w_real = y_real @ w                             # (N,)
 
+        # HORIZON > REBAL인 경우 실제 보유 기간만큼 잘라서 사용
+        if rebal is not None:
+            w_real = w_real[:rebal]
+
         R_real = w_real[-1] / (d * C)
 
         base    = cum_pv[-1]
         cum_pv.extend((base * (1 + w_real)).tolist())
-        pv_arr  = np.array(cum_pv)
-        run_max = np.maximum.accumulate(pv_arr)
-        M_real  = np.max((run_max - pv_arr) / (run_max + 1e-10))
+
+        # 로그용: 해당 윈도우 내 per-window MDD
+        pv_w    = 1 + w_real
+        rmax_w  = np.maximum.accumulate(pv_w)
+        M_real  = np.max((rmax_w - pv_w) / (rmax_w + 1e-10))
 
         top3 = {names[j]: round(w[j], 3) for j in np.argsort(w)[-3:][::-1]}
         results.append({

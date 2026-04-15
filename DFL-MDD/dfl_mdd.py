@@ -8,6 +8,7 @@ import torch
 import cvxpy as cp
 from cvxpylayers.torch import CvxpyLayer
 import random
+import warnings
 from dataclasses import dataclass
 from typing import Dict, Tuple
 from tqdm.auto import tqdm
@@ -270,9 +271,10 @@ def train_dfl_mdd(pred_model, opt_layer, train_samples, val_samples=None,
         zs_val = torch.tensor(np.array([s[0] for s in val_samples]), dtype=torch.float32)
         rs_val = torch.tensor(np.array([s[1] for s in val_samples]), dtype=torch.float32)
 
-    best_val_loss = float("inf")
-    best_state    = None
-    no_improve    = 0
+    best_val_loss    = float("inf")
+    best_state       = None
+    no_improve       = 0
+    inaccurate_log   = []   # {"epoch", "batch", "n_inaccurate"} 기록
 
     print("\n── DFL-MDD Training (with Val Early Stopping + LR Scheduler) ──")
 
@@ -284,11 +286,26 @@ def train_dfl_mdd(pred_model, opt_layer, train_samples, val_samples=None,
             idx = perm[i : i + batch_size]
             z_b, r_b = zs_tr[idx], rs_tr[idx]
             optimizer.zero_grad()
-            result = forward_pass(
-                z_b, r_b, pred_model, opt_layer,
-                n1, C, d, x_min, x_max, lam,
-                is_mean=is_mean, is_std=is_std, delta=delta,
-            )
+
+            with warnings.catch_warnings(record=True) as w:
+                warnings.simplefilter("always")
+                result = forward_pass(
+                    z_b, r_b, pred_model, opt_layer,
+                    n1, C, d, x_min, x_max, lam,
+                    is_mean=is_mean, is_std=is_std, delta=delta,
+                )
+                n_inaccurate = sum(
+                    1 for warning in w if "Inaccurate" in str(warning.message)
+                )
+
+            if n_inaccurate > 0:
+                inaccurate_log.append({
+                    "epoch": epoch + 1,
+                    "batch": i // batch_size,
+                    "n_inaccurate": n_inaccurate,
+                })
+                continue   # gradient update skip
+
             result["loss"].backward()
             optimizer.step()
             ep_loss.append(result["loss"].item())
@@ -335,7 +352,14 @@ def train_dfl_mdd(pred_model, opt_layer, train_samples, val_samples=None,
     if best_state is not None:
         pred_model.load_state_dict(best_state)
 
-    return pred_model
+    if inaccurate_log:
+        print(f"\n  ⚠ Inaccurate 발생: 총 {len(inaccurate_log)}회")
+        for ev in inaccurate_log:
+            print(f"    epoch={ev['epoch']:3d}, batch={ev['batch']:3d}, n={ev['n_inaccurate']}")
+    else:
+        print("\n  ✓ Inaccurate 없음")
+
+    return pred_model, inaccurate_log
 
 
 # =============================================================================
@@ -344,7 +368,7 @@ def train_dfl_mdd(pred_model, opt_layer, train_samples, val_samples=None,
 def backtest_dfl_mdd(pred_model, opt_layer, rebal_samples, N, d, C,
                      n1=0.10, x_min=0.0, x_max=0.30,
                      delta=0.0, is_mean=None, is_std=None,
-                     stock_names=None):
+                     stock_names=None, rebal=None):
     m        = rebal_samples[0][1].shape[1]
     lookback = rebal_samples[0][0].shape[0] // m
     names    = stock_names if stock_names else [f"S{j+1}" for j in range(m)]
@@ -356,6 +380,7 @@ def backtest_dfl_mdd(pred_model, opt_layer, rebal_samples, N, d, C,
     print("-" * 75)
 
     pred_model.eval()
+    bt_inaccurate_log = []   # {"window", "n_inaccurate"}
 
     for i, (z_np, r_np) in enumerate(tqdm(rebal_samples, desc="Backtesting")):
         z      = torch.tensor(z_np[None], dtype=torch.float32)
@@ -371,19 +396,33 @@ def backtest_dfl_mdd(pred_model, opt_layer, rebal_samples, N, d, C,
             S          = np.cov(z_raw.T) + 1e-4 * np.eye(m)
             Sigma_list = [torch.tensor(S, dtype=torch.float64)]
 
-        y_hat  = compute_cumulative_path(r_hat)
-        x_star = solve_portfolio(y_hat.detach(), opt_layer, n1, C, x_min, x_max,
-                                 Sigma_list if delta > 0 else None)
+        y_hat = compute_cumulative_path(r_hat)
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            x_star = solve_portfolio(y_hat.detach(), opt_layer, n1, C, x_min, x_max,
+                                     Sigma_list if delta > 0 else None)
+            n_inaccurate = sum(
+                1 for warning in w if "Inaccurate" in str(warning.message)
+            )
+        if n_inaccurate > 0:
+            bt_inaccurate_log.append({"window": i + 1, "n_inaccurate": n_inaccurate})
         y_real = compute_cumulative_path(r_real)
         w_real = compute_realized_path(x_star, y_real)[0].numpy()
+
+        # HORIZON > REBAL인 경우 실제 보유 기간만큼 잘라서 사용
+        if rebal is not None:
+            w_real  = w_real[:rebal]
+            r_real  = r_real[:, :rebal, :]
 
         R_real = w_real[-1] / (d * C)
 
         base    = cum_pv[-1]
         cum_pv.extend((base * (1 + w_real)).tolist())
-        pv_arr  = np.array(cum_pv)
-        run_max = np.maximum.accumulate(pv_arr)
-        M_real  = np.max((run_max - pv_arr) / (run_max + 1e-10))
+
+        # 로그용: 해당 윈도우 내 per-window MDD
+        pv_w    = 1 + w_real
+        rmax_w  = np.maximum.accumulate(pv_w)
+        M_real  = np.max((rmax_w - pv_w) / (rmax_w + 1e-10))
 
         # Sharpe: lookback Σ 기반 포트폴리오 분산
         sharpe_val = compute_sharpe(x_star, r_real, Sigma_list).item()
@@ -400,7 +439,14 @@ def backtest_dfl_mdd(pred_model, opt_layer, rebal_samples, N, d, C,
         })
         print(f"  {i+1:3d}  {R_real:8.4f}  {sharpe_val:8.4f}  {M_real:8.4%}  {top3}")
 
-    return results
+    if bt_inaccurate_log:
+        print(f"\n  ⚠ Backtest Inaccurate 발생: 총 {len(bt_inaccurate_log)}회")
+        for ev in bt_inaccurate_log:
+            print(f"    window={ev['window']:3d}, n={ev['n_inaccurate']}")
+    else:
+        print("\n  ✓ Backtest Inaccurate 없음")
+
+    return results, bt_inaccurate_log
 
 # =============================================================================
 # PnL Plot
