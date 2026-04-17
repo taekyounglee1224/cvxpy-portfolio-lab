@@ -251,7 +251,8 @@ def train_dfl_mdd(pred_model, opt_layer, train_samples, val_samples=None,
                   epochs=50, batch_size=16, lr=1e-4,
                   n1=0.10, C=1.0, d=1.0, x_min=0.0, x_max=0.30, lam=0.3,
                   is_mean=None, is_std=None, delta=0.0,
-                  patience=10, lr_patience=10, lr_factor=0.5):
+                  patience=10, lr_patience=10, lr_factor=0.5,
+                  train_dates=None):
     """
     DFL-MDD 학습 함수.
     val_samples가 주어지면 매 epoch val loss를 계산하여 early stopping 수행.
@@ -299,11 +300,16 @@ def train_dfl_mdd(pred_model, opt_layer, train_samples, val_samples=None,
                 )
 
             if n_inaccurate > 0:
-                inaccurate_log.append({
-                    "epoch": epoch + 1,
-                    "batch": i // batch_size,
+                entry = {
+                    "epoch"       : epoch + 1,
+                    "batch"       : i // batch_size,
                     "n_inaccurate": n_inaccurate,
-                })
+                }
+                if train_dates is not None:
+                    batch_dates   = [train_dates[j.item()] for j in idx]
+                    entry["date_start"] = min(d[0] for d in batch_dates)
+                    entry["date_end"]   = max(d[1] for d in batch_dates)
+                inaccurate_log.append(entry)
                 continue   # gradient update skip
 
             result["loss"].backward()
@@ -340,7 +346,8 @@ def train_dfl_mdd(pred_model, opt_layer, train_samples, val_samples=None,
                 marker = f"({no_improve}/{patience})"
 
             if (epoch + 1) % 5 == 0 or epoch == 0:
-                print(f"  Epoch {epoch+1:3d}/{epochs}  train={tr_loss:.6f}  val={val_loss:.6f}  lr={current_lr:.2e}  {marker}")
+                inaccurate_str = f"  [inaccurate={len(inaccurate_log)}]" if inaccurate_log else ""
+                print(f"  Epoch {epoch+1:3d}/{epochs}  train={tr_loss:.6f}  val={val_loss:.6f}  lr={current_lr:.2e}  {marker}{inaccurate_str}")
 
             if no_improve >= patience:
                 print(f"  Early stopping at epoch {epoch+1}  (best val={best_val_loss:.6f})")
@@ -355,7 +362,8 @@ def train_dfl_mdd(pred_model, opt_layer, train_samples, val_samples=None,
     if inaccurate_log:
         print(f"\n  ⚠ Inaccurate 발생: 총 {len(inaccurate_log)}회")
         for ev in inaccurate_log:
-            print(f"    epoch={ev['epoch']:3d}, batch={ev['batch']:3d}, n={ev['n_inaccurate']}")
+            date_str = f"  [{ev['date_start']} ~ {ev['date_end']}]" if "date_start" in ev else ""
+            print(f"    epoch={ev['epoch']:3d}, batch={ev['batch']:3d}, count={ev['n_inaccurate']}{date_str}")
     else:
         print("\n  ✓ Inaccurate 없음")
 
@@ -427,8 +435,9 @@ def backtest_dfl_mdd(pred_model, opt_layer, rebal_samples, N, d, C,
         # Sharpe: lookback Σ 기반 포트폴리오 분산
         sharpe_val = compute_sharpe(x_star, r_real, Sigma_list).item()
 
-        w    = x_star[0].numpy()
-        top3 = {names[j]: round(w[j], 3) for j in np.argsort(w)[-3:][::-1]}
+        w        = x_star[0].numpy()
+        n_active = int(np.sum(w > 0.01))
+        top3     = {names[j]: round(w[j], 3) for j in np.argsort(w)[-3:][::-1]}
         results.append({
             "window" : i + 1,
             "weights": w,
@@ -437,12 +446,12 @@ def backtest_dfl_mdd(pred_model, opt_layer, rebal_samples, N, d, C,
             "M_real" : M_real,
             "Sharpe" : sharpe_val,
         })
-        print(f"  {i+1:3d}  {R_real:8.4f}  {sharpe_val:8.4f}  {M_real:8.4%}  {top3}")
+        print(f"  {i+1:3d}  {R_real:8.4f}  {sharpe_val:8.4f}  {M_real:8.4%}  n={n_active:2d}  {top3}")
 
     if bt_inaccurate_log:
         print(f"\n  ⚠ Backtest Inaccurate 발생: 총 {len(bt_inaccurate_log)}회")
         for ev in bt_inaccurate_log:
-            print(f"    window={ev['window']:3d}, n={ev['n_inaccurate']}")
+            print(f"    window={ev['window']:3d}, count={ev['n_inaccurate']}")
     else:
         print("\n  ✓ Backtest Inaccurate 없음")
 

@@ -130,7 +130,8 @@ def backtest_pto_mvo(pred_model, rebal_samples, N, d, C,
         rmax_w  = np.maximum.accumulate(pv_w)
         M_real  = np.max((rmax_w - pv_w) / (rmax_w + 1e-10))
 
-        top3 = {names[j]: round(w[j], 3) for j in np.argsort(w)[-3:][::-1]}
+        n_active = int(np.sum(w > 0.01))
+        top3     = {names[j]: round(w[j], 3) for j in np.argsort(w)[-3:][::-1]}
         results.append({
             "window" : i + 1,
             "weights": w,
@@ -138,6 +139,6 @@ def backtest_pto_mvo(pred_model, rebal_samples, N, d, C,
             "R_real" : R_real,
             "M_real" : M_real,
         })
-        print(f"  {i+1:3d}  {R_real:8.4f}  {M_real:8.4%}  {top3}")
+        print(f"  {i+1:3d}  {R_real:8.4f}  {M_real:8.4%}  n={n_active:2d}  {top3}")
 
     return results
