@@ -104,6 +104,7 @@ def plot_mdd_distribution(all_results, title_prefix="DFL-MDD"):
         ax3.set_title(f"{label}\nBoxplot")
 
     fig.suptitle(f"{title_prefix} — Per-Window MDD Distribution",
-                 fontsize=14, fontweight="bold", y=1.01)
-    plt.tight_layout()
+                 fontsize=14, fontweight="bold")
+    plt.tight_layout(rect=[0, 0, 1, 0.98])
     plt.show()
+    return fig
