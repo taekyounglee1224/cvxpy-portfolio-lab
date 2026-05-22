@@ -121,14 +121,11 @@ def plot_overall_comparison(dfl_results_store, all_results_pto_mdd, all_results_
 
             all_results_dfl_mdd = dfl_results_store[(delta_val, lam_val)]
 
-            pto_mdd_repr = [
-                next((res, lbl) for res, lbl in all_results_pto_mdd
-                     if f"LB={lb}" in lbl)
-                for lb in LOOKBACK_LIST
-            ]
+            # PTO-MDD: n1별로 모두 표시
+            pto_mdd_all = all_results_pto_mdd
 
             n_dfl = len(all_results_dfl_mdd)
-            n_mdd = len(pto_mdd_repr)
+            n_mdd = len(pto_mdd_all)
             n_mvo = len(all_results_mvo)
 
             dfl_colors = [DFL_CMAP(v) for v in np.linspace(0.4, 0.9, max(n_dfl, 1))]
@@ -145,9 +142,8 @@ def plot_overall_comparison(dfl_results_store, all_results_pto_mdd, all_results_
             for (res, lbl), color in zip(all_results_dfl_mdd, dfl_colors):
                 dd_last = _plot_item(ax_pnl, ax_dd, res, lbl, color, linewidth=1.5)
 
-            for (res, lbl), color in zip(pto_mdd_repr, mdd_colors):
-                lbl_clean = f"PTO-MDD (LB={lbl.split('LB=')[1].split(',')[0].strip()})"
-                dd_last = _plot_item(ax_pnl, ax_dd, res, lbl_clean, color,
+            for (res, lbl), color in zip(pto_mdd_all, mdd_colors):
+                dd_last = _plot_item(ax_pnl, ax_dd, res, lbl, color,
                                      linewidth=1.5, linestyle="--")
 
             for (res, lbl), color in zip(all_results_mvo, mvo_colors):
