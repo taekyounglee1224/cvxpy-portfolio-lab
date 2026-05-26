@@ -109,8 +109,13 @@ def plot_allocation(dfl_results_store, all_results_mvo,
                     ax.grid(True, alpha=0.2)
 
                 handles, labels_leg = axes[0].get_legend_handles_labels()
+                n_assets      = len(labels_leg)
+                ncol          = min(10, n_assets)
+                n_rows_leg    = -(-n_assets // ncol)       # 올림 나눗셈
+                bottom_margin = 0.04 + 0.03 * n_rows_leg  # 레전드 행수에 비례
+
                 fig.legend(handles, labels_leg,
-                           loc="lower center", ncol=10,
+                           loc="lower center", ncol=ncol,
                            bbox_to_anchor=(0.5, 0.0), fontsize=9,
                            markerscale=1.5,
                            handler_map={plt.matplotlib.patches.Polygon:
@@ -121,7 +126,7 @@ def plot_allocation(dfl_results_store, all_results_mvo,
                     fontsize=13, fontweight="bold", y=1.01)
                 plt.xticks(rotation=45, ha="right")
                 plt.tight_layout()
-                plt.subplots_adjust(bottom=0.06)
+                plt.subplots_adjust(bottom=bottom_margin)
 
                 alloc_path = os.path.join(
                     PLOT_DIR,
