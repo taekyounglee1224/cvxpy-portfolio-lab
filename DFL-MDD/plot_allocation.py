@@ -86,7 +86,7 @@ def plot_allocation(dfl_results_store, all_results_mvo,
                 all_items = dfl_items + mvo_items
 
                 fig, axes = plt.subplots(len(all_items), 1,
-                                         figsize=(14, 3.5 * len(all_items)),
+                                         figsize=(9, 3.5 * len(all_items)),
                                          sharex=True)
                 if len(all_items) == 1:
                     axes = [axes]
@@ -103,6 +103,7 @@ def plot_allocation(dfl_results_store, all_results_mvo,
                     ax.yaxis.set_major_formatter(
                         plt.FuncFormatter(lambda y, _: f"{y:.0f}%"))
                     ax.set_ylim(0, 100)
+                    ax.set_xlim(df.index[0], df.index[-1])  # ← 양 옆 여백 제거
                     ax.axhline(100, color="gray", linewidth=0.8, linestyle="--")
                     ax.xaxis.set_major_formatter(mdates.DateFormatter("%b %Y"))
                     ax.xaxis.set_major_locator(mdates.MonthLocator(interval=6))
@@ -131,7 +132,7 @@ def plot_allocation(dfl_results_store, all_results_mvo,
                 alloc_path = os.path.join(
                     PLOT_DIR,
                     f"asset_allocation_{N_STOCKS}_inds_{lb}_{lam_val}.png")
-                fig.savefig(alloc_path, bbox_inches="tight", dpi=150)
+                fig.savefig(alloc_path, bbox_inches="tight", dpi=450)
                 print(f"  ✓ plot 저장: {alloc_path}")
 
                 plt.show()

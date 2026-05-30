@@ -168,7 +168,7 @@ def plot_overall_comparison(dfl_results_store, all_results_pto_mdd, all_results_
 
             plot_path = os.path.join(PLOT_DIR,
                                      f"overall_{N_STOCKS}_inds_{lam_val}.png")
-            plt.savefig(plot_path, bbox_inches="tight", dpi=150)
+            plt.savefig(plot_path, bbox_inches="tight", dpi=450)
             print(f"  ✓ plot 저장: {plot_path}")
 
             plt.show()
