@@ -77,7 +77,7 @@ def plot_multi_pnl(results_list, figsize=(14, 8), title="Cumulative PnL Comparis
     print(f"{'─'*75}")
 
 
-def _plot_item(ax_pnl, ax_dd, res, lbl, color, linewidth, linestyle="-"):
+def _plot_item(ax_pnl, ax_dd, res, lbl, color, linewidth, linestyle="-", x_vals=None):
     eq      = build_equity_curve(res)
     perf    = compute_performance(res)
     peak    = np.maximum.accumulate(eq)
@@ -88,14 +88,16 @@ def _plot_item(ax_pnl, ax_dd, res, lbl, color, linewidth, linestyle="-"):
                   f"Ret={cum_ret:+.1%}  "
                   f"MDD={perf['MDD']:.1%}  "
                   f"Calmar={calmar:.2f}")
-    ax_pnl.plot(eq, label=legend_lbl, color=color, linewidth=linewidth, linestyle=linestyle)
-    ax_dd.plot(dd,                    color=color, linewidth=linewidth * 0.7, linestyle=linestyle)
-    return dd
+    xs = x_vals[:len(eq)] if x_vals is not None else np.arange(len(eq))
+    ax_pnl.plot(xs, eq, label=legend_lbl, color=color, linewidth=linewidth, linestyle=linestyle)
+    ax_dd.plot(xs, dd,                    color=color, linewidth=linewidth * 0.7, linestyle=linestyle)
+    return dd, xs
 
 
 def plot_overall_comparison(dfl_results_store, all_results_pto_mdd, all_results_mvo,
                             DELTA_LIST, LAM_LIST, LOOKBACK_LIST,
-                            N_STOCKS, PLOT_DIR):
+                            N_STOCKS, PLOT_DIR,
+                            full_dates=None, test_start_idx=None):
     """
     Parameters
     ----------
@@ -138,30 +140,56 @@ def plot_overall_comparison(dfl_results_store, all_results_pto_mdd, all_results_
                 sharex=True
             )
 
-            dd_last = None
+            # x축 날짜 배열 구성
+            if full_dates is not None and test_start_idx is not None:
+                first_res = all_results_dfl_mdd[0][0]
+                eq_len    = len(build_equity_curve(first_res))
+                x_vals    = full_dates[test_start_idx:test_start_idx + eq_len]
+            else:
+                x_vals = None
+
+            dd_last, xs_last = None, None
             for (res, lbl), color in zip(all_results_dfl_mdd, dfl_colors):
-                dd_last = _plot_item(ax_pnl, ax_dd, res, lbl, color, linewidth=1.5)
+                dd_last, xs_last = _plot_item(ax_pnl, ax_dd, res, lbl, color,
+                                              linewidth=1.5, x_vals=x_vals)
 
             for (res, lbl), color in zip(pto_mdd_all, mdd_colors):
-                dd_last = _plot_item(ax_pnl, ax_dd, res, lbl, color,
-                                     linewidth=1.5, linestyle="--")
+                dd_last, xs_last = _plot_item(ax_pnl, ax_dd, res, lbl, color,
+                                              linewidth=1.5, linestyle="--", x_vals=x_vals)
 
             for (res, lbl), color in zip(all_results_mvo, mvo_colors):
-                dd_last = _plot_item(ax_pnl, ax_dd, res, lbl, color,
-                                     linewidth=2.0, linestyle=":")
+                dd_last, xs_last = _plot_item(ax_pnl, ax_dd, res, lbl, color,
+                                              linewidth=2.0, linestyle=":", x_vals=x_vals)
 
             ax_pnl.set_title(
                 f"DFL-MDD vs PTO-MDD vs PTO-MVO | delta={delta_val}, lam={lam_val}")
             ax_pnl.set_ylabel("Portfolio Value")
             ax_pnl.legend(loc="upper left", fontsize=7.0)
+            # 양 옆 살짝 여백
+            if x_vals is not None:
+                import pandas as pd
+                pad = pd.Timedelta(days=60)
+                x_lo, x_hi = xs_last[0] - pad, xs_last[-1] + pad
+            else:
+                pad = len(xs_last) * 0.02
+                x_lo, x_hi = xs_last[0] - pad, xs_last[-1] + pad
+
+            ax_pnl.set_xlim(x_lo, x_hi)
             ax_pnl.grid(True, alpha=0.3)
 
             ax_dd.set_ylabel("Drawdown")
-            ax_dd.set_xlabel("Trading Days")
+            ax_dd.set_xlabel("Date" if x_vals is not None else "Trading Days")
             ax_dd.yaxis.set_major_formatter(
                 plt.FuncFormatter(lambda y, _: f"{y:.0%}"))
-            ax_dd.fill_between(range(len(dd_last)), dd_last, 0,
-                                alpha=0.1, color="gray")
+            ax_dd.fill_between(xs_last, dd_last, 0, alpha=0.1, color="gray")
+            ax_dd.set_xlim(x_lo, x_hi)
+
+            if x_vals is not None:
+                import matplotlib.dates as mdates
+                ax_dd.xaxis.set_major_formatter(mdates.DateFormatter("%b %Y"))
+                ax_dd.xaxis.set_major_locator(mdates.MonthLocator(interval=6))
+                plt.setp(ax_dd.xaxis.get_majorticklabels(), rotation=45, ha="right")
+
             ax_dd.grid(True, alpha=0.3)
 
             plt.tight_layout()
