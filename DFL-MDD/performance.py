@@ -24,8 +24,10 @@ import pandas as pd
 
 __all__ = [
     "build_equity_curve",
+    "apply_tc",
     "compute_performance",
     "print_performance_table",
+    "print_tc_performance_table",
 ]
 
 
@@ -98,6 +100,49 @@ def _hhi(results):
 
 
 # ──────────────────────────────────────────────
+# Transaction Cost 유틸
+# ──────────────────────────────────────────────
+
+def apply_tc(results, tc_rate=0.0):
+    """
+    Transaction cost 사후(post-hoc) 반영.
+
+    리밸런싱 시점마다 이전 weights 대비 turnover를 계산하고
+    tc_rate × turnover 만큼 포트폴리오 가치를 차감.
+
+    Parameters
+    ----------
+    results : backtest_* 반환 리스트  (각 dict에 'weights', 'w_real' 필요)
+    tc_rate : float  (예: 0.001 = 0.1%,  0.10 = 10%)
+
+    Returns
+    -------
+    adjusted : 동일 구조의 리스트  (w_real만 TC 반영하여 교체)
+    """
+    if tc_rate == 0.0:
+        return results
+
+    adjusted = []
+    prev_w   = None
+
+    for res in results:
+        w      = np.array(res["weights"])
+        w_real = np.array(res["w_real"], dtype=float)
+
+        if prev_w is not None:
+            turnover = float(np.sum(np.abs(w - prev_w)))
+            tc       = tc_rate * turnover
+            # base를 (1 - tc) 배로 줄인 효과:
+            # (base*(1-tc)) * (1 + w_real) = base * (1 + (1-tc)*(1+w_real) - 1)
+            w_real = (1.0 - tc) * (1.0 + w_real) - 1.0
+
+        adjusted.append({**res, "w_real": w_real})
+        prev_w = w
+
+    return adjusted
+
+
+# ──────────────────────────────────────────────
 # 공개 API
 # ──────────────────────────────────────────────
 
@@ -154,3 +199,49 @@ def print_performance_table(all_results, title=None):
     print()
 
     return df_raw   # 수치값 반환 (추가 분석용)
+
+
+def print_tc_performance_table(all_results,
+                                tc_rates=(0.0, 0.10, 0.20, 0.40),
+                                title=None):
+    """
+    TC rate별 성과 비교표를 한 번에 출력.
+
+    Parameters
+    ----------
+    all_results : list of (results_list, label) tuples
+    tc_rates    : iterable of float  (예: (0.0, 0.10, 0.20, 0.40))
+    title       : 출력 상단 제목 (optional)
+
+    Returns
+    -------
+    dict : { tc_rate: pd.DataFrame }
+    """
+    if title:
+        print(f"\n{'═'*70}")
+        print(f"  {title}  —  Transaction Cost 민감도 분석")
+        print(f"{'═'*70}")
+
+    dfs = {}
+    for tc_rate in tc_rates:
+        tc_label = f"TC={int(round(tc_rate*10000))}bps"
+        rows = []
+        for results, label in all_results:
+            adj = apply_tc(results, tc_rate)
+            rows.append(compute_performance(adj, label))
+
+        df_raw = pd.DataFrame(rows).set_index("label")
+        df_fmt = df_raw.copy()
+        df_fmt["Ann.Ret"]   = df_raw["Ann.Ret"].map("{:+.2%}".format)
+        df_fmt["Sharpe"]    = df_raw["Sharpe"].map("{:.3f}".format)
+        df_fmt["CVaR(5%)"]  = df_raw["CVaR(5%)"].map("{:.2%}".format)
+        df_fmt["MDD"]       = df_raw["MDD"].map("{:.2%}".format)
+        df_fmt["HHI"]       = df_raw["HHI"].map("{:.4f}".format)
+
+        print(f"\n  ── {tc_label} ──")
+        print(df_fmt.to_string())
+
+        dfs[tc_rate] = df_raw
+
+    print()
+    return dfs

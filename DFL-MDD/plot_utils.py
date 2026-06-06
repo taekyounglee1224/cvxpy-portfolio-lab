@@ -15,7 +15,7 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mtick
-from performance import build_equity_curve, compute_performance
+from performance import build_equity_curve, compute_performance, apply_tc
 
 __all__ = ["plot_multi_pnl", "plot_overall_comparison"]
 
@@ -97,7 +97,8 @@ def _plot_item(ax_pnl, ax_dd, res, lbl, color, linewidth, linestyle="-", x_vals=
 def plot_overall_comparison(dfl_results_store, all_results_pto_mdd, all_results_mvo,
                             DELTA_LIST, LAM_LIST, LOOKBACK_LIST,
                             N_STOCKS, PLOT_DIR,
-                            full_dates=None, test_start_idx=None):
+                            full_dates=None, test_start_idx=None,
+                            tc_rate=0.0):
     """
     Parameters
     ----------
@@ -121,14 +122,15 @@ def plot_overall_comparison(dfl_results_store, all_results_pto_mdd, all_results_
                 print(f"  스킵: delta={delta_val}, lam={lam_val} (체크포인트 없음)")
                 continue
 
-            all_results_dfl_mdd = dfl_results_store[(delta_val, lam_val)]
-
-            # PTO-MDD: n1별로 모두 표시
-            pto_mdd_all = all_results_pto_mdd
+            # TC 반영
+            raw_dfl = dfl_results_store[(delta_val, lam_val)]
+            all_results_dfl_mdd = [(apply_tc(r, tc_rate), l) for r, l in raw_dfl]
+            pto_mdd_all  = [(apply_tc(r, tc_rate), l) for r, l in all_results_pto_mdd]
+            all_results_mvo_tc = [(apply_tc(r, tc_rate), l) for r, l in all_results_mvo]
 
             n_dfl = len(all_results_dfl_mdd)
             n_mdd = len(pto_mdd_all)
-            n_mvo = len(all_results_mvo)
+            n_mvo = len(all_results_mvo_tc)
 
             dfl_colors = [DFL_CMAP(v) for v in np.linspace(0.4, 0.9, max(n_dfl, 1))]
             mdd_colors = [MDD_CMAP(v) for v in np.linspace(0.4, 0.9, max(n_mdd, 1))]
@@ -157,12 +159,13 @@ def plot_overall_comparison(dfl_results_store, all_results_pto_mdd, all_results_
                 dd_last, xs_last = _plot_item(ax_pnl, ax_dd, res, lbl, color,
                                               linewidth=1.5, linestyle="--", x_vals=x_vals)
 
-            for (res, lbl), color in zip(all_results_mvo, mvo_colors):
+            for (res, lbl), color in zip(all_results_mvo_tc, mvo_colors):
                 dd_last, xs_last = _plot_item(ax_pnl, ax_dd, res, lbl, color,
                                               linewidth=2.0, linestyle=":", x_vals=x_vals)
 
+            tc_str = f"  |  TC={int(round(tc_rate*10000))}bps" if tc_rate > 0 else ""
             ax_pnl.set_title(
-                f"DFL-MDD vs PTO-MDD vs PTO-MVO | delta={delta_val}, lam={lam_val}")
+                f"DFL-MDD vs PTO-MDD vs PTO-MVO | delta={delta_val}, lam={lam_val}{tc_str}")
             ax_pnl.set_ylabel("Portfolio Value")
             ax_pnl.legend(loc="upper left", fontsize=7.0)
             # 양 옆 살짝 여백
@@ -194,8 +197,9 @@ def plot_overall_comparison(dfl_results_store, all_results_pto_mdd, all_results_
 
             plt.tight_layout()
 
+            tc_suffix = f"_tc{int(round(tc_rate*10000))}bps" if tc_rate > 0 else ""
             plot_path = os.path.join(PLOT_DIR,
-                                     f"overall_{N_STOCKS}_inds_{lam_val}.png")
+                                     f"overall_{N_STOCKS}_inds_{lam_val}{tc_suffix}.png")
             plt.savefig(plot_path, bbox_inches="tight", dpi=450)
             print(f"  ✓ plot 저장: {plot_path}")
 
