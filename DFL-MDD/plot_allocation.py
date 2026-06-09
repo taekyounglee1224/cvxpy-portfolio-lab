@@ -17,19 +17,20 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 
-__all__ = ["plot_allocation"]
+__all__ = ["plot_allocation", "plot_allocation_compact"]
 
+# pastel 팔레트 (연한 채도, 본문 출판용)
 ASSET_COLORS = [
-    "#4E79A7",  # steel blue
-    "#F28E2B",  # orange
-    "#59A14F",  # green
-    "#E15759",  # red
-    "#76B7B2",  # teal
-    "#EDC948",  # yellow
-    "#B07AA1",  # purple
-    "#FF9DA7",  # pink
-    "#9C755F",  # brown
-    "#BAB0AC",  # gray
+    "#A6CEE3",  # light blue
+    "#FDBF6F",  # light orange
+    "#B2DF8A",  # light green
+    "#FB9A99",  # light red/pink
+    "#CAB2D6",  # light purple
+    "#FFFF99",  # light yellow
+    "#C5B0A5",  # light taupe
+    "#FCCDE5",  # light pink
+    "#D9D9D9",  # light gray
+    "#BC80BD",  # light mauve
 ]
 
 
@@ -136,3 +137,74 @@ def plot_allocation(dfl_results_store, all_results_mvo,
                 print(f"  ✓ plot 저장: {alloc_path}")
 
                 plt.show()
+
+
+def plot_allocation_compact(dfl_results_store, all_results_mvo,
+                            delta_val, lam_val, lb, n1_select,
+                            stock_names, folds, full_dates,
+                            REBAL, HORIZON, N_STOCKS, PLOT_DIR):
+    """
+    본문용 2칸 allocation plot: 대표 DFL-MDD 1개 + PTO-MVO.
+
+    Parameters
+    ----------
+    dfl_results_store : dict  {(delta, lam): all_results_dfl_mdd}
+    all_results_mvo   : list of (results, label)
+    delta_val, lam_val, lb : 보여줄 단일 조합
+    n1_select         : float  표시할 DFL-MDD의 n1 (예: 0.2)
+    stock_names       : list of str
+    folds             : fold 정의 리스트
+    full_dates        : pd.DatetimeIndex
+    REBAL, HORIZON    : int
+    N_STOCKS          : int  (파일명용)
+    PLOT_DIR          : str  (저장 경로)
+    """
+    asset_colors = ASSET_COLORS[:len(stock_names)]
+    os.makedirs(PLOT_DIR, exist_ok=True)
+
+    all_results_dfl_mdd = dfl_results_store[(delta_val, lam_val)]
+
+    # 대표 DFL-MDD 1개 선택
+    dfl_pick = next((res, lbl) for res, lbl in all_results_dfl_mdd
+                    if f"LB={lb}" in lbl and f"n1={n1_select}" in lbl)
+    # PTO-MVO (해당 lb)
+    mvo_pick = next((res, lbl) for res, lbl in all_results_mvo
+                    if f"LB={lb}" in lbl)
+
+    panels = [
+        (dfl_pick[0], f"DFL-MDD (LB={lb}, $n_1$={n1_select})"),
+        (mvo_pick[0], f"PTO-MVO (LB={lb})"),
+    ]
+
+    fig, axes = plt.subplots(2, 1, figsize=(9, 6), sharex=True)
+
+    for ax, (res, lbl) in zip(axes, panels):
+        df = _build_allocation_df(res, stock_names, folds,
+                                  full_dates, REBAL, HORIZON)
+        ax.stackplot(df.index, (df * 100).T,
+                     labels=stock_names, colors=asset_colors, alpha=0.95)
+        ax.set_title(lbl, fontsize=8, fontweight="bold")
+        ax.set_ylabel("Allocation")
+        ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda y, _: f"{y:.0f}%"))
+        ax.set_ylim(0, 100)
+        ax.set_xlim(df.index[0], df.index[-1])
+        ax.xaxis.set_major_formatter(mdates.DateFormatter("%b %Y"))
+        ax.xaxis.set_major_locator(mdates.MonthLocator(interval=12))
+        ax.grid(True, alpha=0.15)
+
+    handles, labels_leg = axes[0].get_legend_handles_labels()
+    fig.legend(handles, labels_leg, loc="lower center",
+               ncol=min(10, len(labels_leg)),
+               bbox_to_anchor=(0.5, -0.02), fontsize=8, frameon=False)
+
+    plt.setp(axes[-1].xaxis.get_majorticklabels(), rotation=45, ha="right")
+    plt.tight_layout()
+    plt.subplots_adjust(bottom=0.13)
+
+    alloc_path = os.path.join(
+        PLOT_DIR,
+        f"asset_allocation_compact_{N_STOCKS}_inds_{lb}_{lam_val}.png")
+    fig.savefig(alloc_path, bbox_inches="tight", dpi=600)
+    print(f"  ✓ plot 저장: {alloc_path}")
+
+    plt.show()
