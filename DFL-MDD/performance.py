@@ -19,6 +19,7 @@ performance.py
   print_performance_table(all_results)
 """
 
+import os
 import numpy as np
 import pandas as pd
 
@@ -28,6 +29,7 @@ __all__ = [
     "compute_performance",
     "print_performance_table",
     "print_tc_performance_table",
+    "build_metrics_dataframe",
 ]
 
 
@@ -85,6 +87,12 @@ def _mdd(equity):
     peak = np.maximum.accumulate(equity)
     drawdown = (peak - equity) / (peak + 1e-10)
     return float(np.max(drawdown))
+
+
+def _calmar(equity):
+    cum_ret = float(equity[-1] / equity[0] - 1.0)
+    mdd     = _mdd(equity)
+    return float(cum_ret / (mdd + 1e-10))
 
 
 def _hhi(results):
@@ -162,6 +170,7 @@ def compute_performance(results, label=""):
         "Sharpe"   : _sharpe(equity),
         "CVaR(5%)" : _cvar(equity),
         "MDD"      : _mdd(equity),
+        "Calmar"   : _calmar(equity),
         "HHI"      : _hhi(results),
     }
 
@@ -244,4 +253,109 @@ def print_tc_performance_table(all_results,
         dfs[tc_rate] = df_raw
 
     print()
+    return dfs
+
+
+def build_metrics_dataframe(dfl_results_store,
+                             all_results_pto_mdd,
+                             all_results_mvo,
+                             tc_rate=0.0,
+                             save_dir=None,
+                             N_STOCKS=""):
+    """
+    lambda별로 DataFrame을 만들고 CSV 저장.
+    각 CSV = 해당 lambda의 DFL-MDD 결과 + 전체 벤치마크 (PTO-MDD, PTO-MVO).
+
+    Parameters
+    ----------
+    dfl_results_store   : dict  {(delta, lam): [(results, label), ...]}
+    all_results_pto_mdd : list of (results, label)
+    all_results_mvo     : list of (results, label)
+    tc_rate             : float  transaction cost rate (default 0.0)
+    save_dir            : str or None  저장 폴더 (예: "./csv")
+    N_STOCKS            : int or str  파일명 구분용 (예: 10, 30)
+
+    Returns
+    -------
+    dfs : dict  { lam_val: pd.DataFrame }
+    """
+
+    # ── 벤치마크 rows 먼저 계산 (모든 lambda CSV에 공통 포함) ──
+    benchmark_rows = []
+
+    for results, label in all_results_pto_mdd:
+        try:
+            lb = int(label.split("LB=")[1].split(",")[0].strip())
+            n1 = float(label.split("n1=")[1].split(")")[0].strip())
+        except Exception:
+            lb, n1 = None, None
+        perf = compute_performance(apply_tc(results, tc_rate))
+        benchmark_rows.append({
+            "Model"    : "PTO-MDD",
+            "lam"      : None,
+            "Lookback" : lb,
+            "n1"       : n1,
+            "Ann.Ret"  : perf["Ann.Ret"],
+            "Sharpe"   : perf["Sharpe"],
+            "CVaR(5%)" : perf["CVaR(5%)"],
+            "MDD"      : perf["MDD"],
+            "Calmar"   : perf["Calmar"],
+            "HHI"      : perf["HHI"],
+        })
+
+    for results, label in all_results_mvo:
+        try:
+            lb = int(label.split("LB=")[1].split(")")[0].strip())
+        except Exception:
+            lb = None
+        perf = compute_performance(apply_tc(results, tc_rate))
+        benchmark_rows.append({
+            "Model"    : "PTO-MVO",
+            "lam"      : None,
+            "Lookback" : lb,
+            "n1"       : None,
+            "Ann.Ret"  : perf["Ann.Ret"],
+            "Sharpe"   : perf["Sharpe"],
+            "CVaR(5%)" : perf["CVaR(5%)"],
+            "MDD"      : perf["MDD"],
+            "Calmar"   : perf["Calmar"],
+            "HHI"      : perf["HHI"],
+        })
+
+    # ── lambda별 DFL-MDD + 벤치마크 합쳐서 저장 ──
+    dfs = {}
+
+    for (delta_val, lam_val), results_list in dfl_results_store.items():
+        dfl_rows = []
+        for results, label in results_list:
+            try:
+                lb = int(label.split("LB=")[1].split(",")[0].strip())
+                n1 = float(label.split("n1=")[1].split(")")[0].strip())
+            except Exception:
+                lb, n1 = None, None
+            perf = compute_performance(apply_tc(results, tc_rate))
+            dfl_rows.append({
+                "Model"    : "DFL-MDD",
+                "lam"      : lam_val,
+                "Lookback" : lb,
+                "n1"       : n1,
+                "Ann.Ret"  : perf["Ann.Ret"],
+                "Sharpe"   : perf["Sharpe"],
+                "CVaR(5%)" : perf["CVaR(5%)"],
+                "MDD"      : perf["MDD"],
+                "Calmar"   : perf["Calmar"],
+                "HHI"      : perf["HHI"],
+            })
+
+        df = pd.DataFrame(dfl_rows + benchmark_rows)
+        dfs[lam_val] = df
+
+        if save_dir is not None:
+            os.makedirs(save_dir, exist_ok=True)
+            tc_suffix = f"_tc{int(round(tc_rate*10000))}bps" if tc_rate > 0 else ""
+            fname = f"{N_STOCKS}_inds_lam{lam_val}{tc_suffix}.csv"
+            fpath = os.path.join(save_dir, fname)
+            df.to_csv(fpath, index=False)
+            print(f"  ✓ CSV 저장: {fpath}")
+
     return dfs
