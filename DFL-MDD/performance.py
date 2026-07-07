@@ -90,9 +90,10 @@ def _mdd(equity):
 
 
 def _calmar(equity):
-    cum_ret = float(equity[-1] / equity[0] - 1.0)
+    # 표준 Calmar: 연환산 수익률(Ann.Ret) / MDD
+    ann_ret = _annualized_return(equity)
     mdd     = _mdd(equity)
-    return float(cum_ret / (mdd + 1e-10))
+    return float(ann_ret / (mdd + 1e-10))
 
 
 def _hhi(results):

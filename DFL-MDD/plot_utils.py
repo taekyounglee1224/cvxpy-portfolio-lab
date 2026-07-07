@@ -40,7 +40,9 @@ def plot_multi_pnl(results_list, figsize=(14, 8), title="Cumulative PnL Comparis
         drawdown    = (running_max - pv) / (running_max + 1e-10)
         total_ret   = pv[-1] - 1.0
         max_dd      = drawdown.max()
-        calmar      = total_ret / (max_dd + 1e-10)
+        n_days      = len(pv) - 1
+        ann_ret     = (pv[-1] ** (252 / n_days)) - 1 if n_days > 0 else float("nan")
+        calmar      = ann_ret / (max_dd + 1e-10)   # Ann.Ret / MDD (일관)
 
         full_label = f"{label}  R:{total_ret:.1%}  MDD:{max_dd:.1%}  Cal:{calmar:.2f}"
         ax1.plot(np.arange(len(pv)), pv, color=color, linewidth=1.5, label=full_label)
@@ -83,7 +85,7 @@ def _plot_item(ax_pnl, ax_dd, res, lbl, color, linewidth, linestyle="-", x_vals=
     peak    = np.maximum.accumulate(eq)
     dd      = (eq - peak) / (peak + 1e-10)
     cum_ret = eq[-1] / eq[0] - 1
-    calmar  = cum_ret / (perf['MDD'] + 1e-10)
+    calmar  = perf['Calmar']   # Ann.Ret / MDD (performance.py와 일관)
     legend_lbl = (f"{lbl}  "
                   f"Ret={cum_ret:+.1%}  "
                   f"MDD={perf['MDD']:.1%}  "
