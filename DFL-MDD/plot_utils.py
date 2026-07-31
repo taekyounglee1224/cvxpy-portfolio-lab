@@ -12,6 +12,7 @@ plot_utils.py
 """
 
 import os
+import re
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mtick
@@ -79,15 +80,29 @@ def plot_multi_pnl(results_list, figsize=(14, 8), title="Cumulative PnL Comparis
     print(f"{'─'*75}")
 
 
+def _fmt_n1_pct(label):
+    """
+    legend용 라벨 정리:
+      - 'n1=0.1' → '10%'
+      - 'LB=252, ' / '(LB=252)' 등 Lookback 표기 제거
+    예) 'DFL-MDD (LB=252, n1=0.1)' → 'DFL-MDD (10%)'
+        'PTO-MVO (LB=252)'         → 'PTO-MVO'
+    """
+    s = re.sub(r"n1=([0-9.]+)",
+               lambda m: f"{float(m.group(1)) * 100:.0f}%", label)
+    s = re.sub(r"LB=\d+\s*,\s*", "", s)   # 'LB=252, ' 제거
+    s = re.sub(r"\s*\(\s*LB=\d+\s*\)", "", s)  # ' (LB=252)' 단독 제거
+    s = re.sub(r"\(\s*", "(", s).replace("( ", "(")
+    return s.strip()
+
+
 def _plot_item(ax_pnl, ax_dd, res, lbl, color, linewidth, linestyle="-", x_vals=None):
     eq      = build_equity_curve(res)
     perf    = compute_performance(res)
     peak    = np.maximum.accumulate(eq)
     dd      = (eq - peak) / (peak + 1e-10)
-    cum_ret = eq[-1] / eq[0] - 1
     calmar  = perf['Calmar']   # Ann.Ret / MDD (performance.py와 일관)
-    legend_lbl = (f"{lbl}  "
-                  f"Ret={cum_ret:+.1%}  "
+    legend_lbl = (f"{_fmt_n1_pct(lbl)}  "
                   f"MDD={perf['MDD']:.1%}  "
                   f"Calmar={calmar:.2f}")
     xs = x_vals[:len(eq)] if x_vals is not None else np.arange(len(eq))
@@ -130,79 +145,82 @@ def plot_overall_comparison(dfl_results_store, all_results_pto_mdd, all_results_
             pto_mdd_all  = [(apply_tc(r, tc_rate), l) for r, l in all_results_pto_mdd]
             all_results_mvo_tc = [(apply_tc(r, tc_rate), l) for r, l in all_results_mvo]
 
-            n_dfl = len(all_results_dfl_mdd)
-            n_mdd = len(pto_mdd_all)
-            n_mvo = len(all_results_mvo_tc)
+            # ── Lookback별로 개별 그래프 생성 ──────────────────
+            for lb in LOOKBACK_LIST:
+                dfl_lb = [(r, l) for r, l in all_results_dfl_mdd if f"LB={lb}" in l]
+                mdd_lb = [(r, l) for r, l in pto_mdd_all          if f"LB={lb}" in l]
+                mvo_lb = [(r, l) for r, l in all_results_mvo_tc   if f"LB={lb}" in l]
 
-            dfl_colors = [DFL_CMAP(v) for v in np.linspace(0.4, 0.9, max(n_dfl, 1))]
-            mdd_colors = [MDD_CMAP(v) for v in np.linspace(0.4, 0.9, max(n_mdd, 1))]
-            mvo_colors = [MVO_CMAP(v) for v in np.linspace(0.5, 0.9, max(n_mvo, 1))]
+                if not dfl_lb:
+                    continue
 
-            fig, (ax_pnl, ax_dd) = plt.subplots(
-                2, 1, figsize=(16, 10),
-                gridspec_kw={"height_ratios": [3, 1]},
-                sharex=True
-            )
+                dfl_colors = [DFL_CMAP(v) for v in np.linspace(0.4, 0.9, max(len(dfl_lb), 1))]
+                mdd_colors = [MDD_CMAP(v) for v in np.linspace(0.4, 0.9, max(len(mdd_lb), 1))]
+                mvo_colors = [MVO_CMAP(v) for v in np.linspace(0.5, 0.9, max(len(mvo_lb), 1))]
 
-            # x축 날짜 배열 구성
-            if full_dates is not None and test_start_idx is not None:
-                first_res = all_results_dfl_mdd[0][0]
-                eq_len    = len(build_equity_curve(first_res))
-                x_vals    = full_dates[test_start_idx:test_start_idx + eq_len]
-            else:
-                x_vals = None
+                fig, (ax_pnl, ax_dd) = plt.subplots(
+                    2, 1, figsize=(14, 9),
+                    gridspec_kw={"height_ratios": [3, 1]},
+                    sharex=True
+                )
 
-            dd_last, xs_last = None, None
-            for (res, lbl), color in zip(all_results_dfl_mdd, dfl_colors):
-                dd_last, xs_last = _plot_item(ax_pnl, ax_dd, res, lbl, color,
-                                              linewidth=1.5, x_vals=x_vals)
+                # x축 날짜 배열 구성
+                if full_dates is not None and test_start_idx is not None:
+                    eq_len = len(build_equity_curve(dfl_lb[0][0]))
+                    x_vals = full_dates[test_start_idx:test_start_idx + eq_len]
+                else:
+                    x_vals = None
 
-            for (res, lbl), color in zip(pto_mdd_all, mdd_colors):
-                dd_last, xs_last = _plot_item(ax_pnl, ax_dd, res, lbl, color,
-                                              linewidth=1.5, linestyle="--", x_vals=x_vals)
+                dd_last, xs_last = None, None
+                for (res, lbl), color in zip(dfl_lb, dfl_colors):
+                    dd_last, xs_last = _plot_item(ax_pnl, ax_dd, res, lbl, color,
+                                                  linewidth=1.5, x_vals=x_vals)
+                for (res, lbl), color in zip(mdd_lb, mdd_colors):
+                    dd_last, xs_last = _plot_item(ax_pnl, ax_dd, res, lbl, color,
+                                                  linewidth=1.5, linestyle="--", x_vals=x_vals)
+                for (res, lbl), color in zip(mvo_lb, mvo_colors):
+                    dd_last, xs_last = _plot_item(ax_pnl, ax_dd, res, lbl, color,
+                                                  linewidth=2.0, linestyle=":", x_vals=x_vals)
 
-            for (res, lbl), color in zip(all_results_mvo_tc, mvo_colors):
-                dd_last, xs_last = _plot_item(ax_pnl, ax_dd, res, lbl, color,
-                                              linewidth=2.0, linestyle=":", x_vals=x_vals)
+                tc_str = f"  |  TC={int(round(tc_rate*10000))}bps" if tc_rate > 0 else ""
+                ax_pnl.set_title(
+                    f"Overall Comparison ({N_STOCKS} Industries, Lookback = {lb}){tc_str}")
+                ax_pnl.set_ylabel("Portfolio Value")
+                ax_pnl.legend(loc="upper left", fontsize=8.0)
 
-            tc_str = f"  |  TC={int(round(tc_rate*10000))}bps" if tc_rate > 0 else ""
-            ax_pnl.set_title(
-                f"DFL-MDD vs PTO-MDD vs PTO-MVO | delta={delta_val}, lam={lam_val}{tc_str}")
-            ax_pnl.set_ylabel("Portfolio Value")
-            ax_pnl.legend(loc="upper left", fontsize=7.0)
-            # 양 옆 살짝 여백
-            if x_vals is not None:
-                import pandas as pd
-                pad = pd.Timedelta(days=60)
-                x_lo, x_hi = xs_last[0] - pad, xs_last[-1] + pad
-            else:
-                pad = len(xs_last) * 0.02
-                x_lo, x_hi = xs_last[0] - pad, xs_last[-1] + pad
+                # 양 옆 살짝 여백
+                if x_vals is not None:
+                    import pandas as pd
+                    pad = pd.Timedelta(days=60)
+                    x_lo, x_hi = xs_last[0] - pad, xs_last[-1] + pad
+                else:
+                    pad = len(xs_last) * 0.02
+                    x_lo, x_hi = xs_last[0] - pad, xs_last[-1] + pad
 
-            ax_pnl.set_xlim(x_lo, x_hi)
-            ax_pnl.grid(True, alpha=0.3)
+                ax_pnl.set_xlim(x_lo, x_hi)
+                ax_pnl.grid(True, alpha=0.3)
 
-            ax_dd.set_ylabel("Drawdown")
-            ax_dd.set_xlabel("Date" if x_vals is not None else "Trading Days")
-            ax_dd.yaxis.set_major_formatter(
-                plt.FuncFormatter(lambda y, _: f"{y:.0%}"))
-            ax_dd.fill_between(xs_last, dd_last, 0, alpha=0.1, color="gray")
-            ax_dd.set_xlim(x_lo, x_hi)
+                ax_dd.set_ylabel("Drawdown")
+                ax_dd.set_xlabel("Date" if x_vals is not None else "Trading Days")
+                ax_dd.yaxis.set_major_formatter(
+                    plt.FuncFormatter(lambda y, _: f"{y:.0%}"))
+                ax_dd.fill_between(xs_last, dd_last, 0, alpha=0.1, color="gray")
+                ax_dd.set_xlim(x_lo, x_hi)
 
-            if x_vals is not None:
-                import matplotlib.dates as mdates
-                ax_dd.xaxis.set_major_formatter(mdates.DateFormatter("%b %Y"))
-                ax_dd.xaxis.set_major_locator(mdates.MonthLocator(interval=6))
-                plt.setp(ax_dd.xaxis.get_majorticklabels(), rotation=45, ha="right")
+                if x_vals is not None:
+                    import matplotlib.dates as mdates
+                    ax_dd.xaxis.set_major_formatter(mdates.DateFormatter("%b %Y"))
+                    ax_dd.xaxis.set_major_locator(mdates.MonthLocator(interval=6))
+                    plt.setp(ax_dd.xaxis.get_majorticklabels(), rotation=45, ha="right")
 
-            ax_dd.grid(True, alpha=0.3)
+                ax_dd.grid(True, alpha=0.3)
+                plt.tight_layout()
 
-            plt.tight_layout()
+                tc_suffix = f"_tc{int(round(tc_rate*10000))}bps" if tc_rate > 0 else ""
+                plot_path = os.path.join(
+                    PLOT_DIR,
+                    f"overall_{N_STOCKS}_inds_LB{lb}_{lam_val}{tc_suffix}.png")
+                plt.savefig(plot_path, bbox_inches="tight", dpi=450)
+                print(f"  ✓ plot 저장: {plot_path}")
 
-            tc_suffix = f"_tc{int(round(tc_rate*10000))}bps" if tc_rate > 0 else ""
-            plot_path = os.path.join(PLOT_DIR,
-                                     f"overall_{N_STOCKS}_inds_{lam_val}{tc_suffix}.png")
-            plt.savefig(plot_path, bbox_inches="tight", dpi=450)
-            print(f"  ✓ plot 저장: {plot_path}")
-
-            plt.show()
+                plt.show()
