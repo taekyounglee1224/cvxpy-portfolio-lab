@@ -110,6 +110,7 @@ def solve_portfolio(
     x_min: float,
     x_max: float,
     Sigma_list=None,          # list of (m,m) torch.Tensor, delta>0일 때만 사용
+    infeas_counter=None,      # list (mutable): solver 실패 시 append (Reviewer #4)
 ) -> torch.Tensor:
     batch, N, m = y_hat.shape
     n1C_val   = torch.tensor(n1 * C, dtype=torch.float64)
@@ -132,7 +133,9 @@ def solve_portfolio(
                     y_hat[b].double(), n1C_val, x_min_val, x_max_val,
                     solver_args={"solve_method": "ECOS"},
                 )
-        except Exception:
+        except Exception as e:
+            if infeas_counter is not None:
+                infeas_counter.append(str(e)[:120] or "solve_failed")
             x_raw     = torch.softmax(y_hat[b, -1, :], dim=0)
             x_clamped = torch.clamp(x_raw, min=x_min, max=x_max)
             x_star_b  = (x_clamped / x_clamped.sum()).double()
@@ -389,6 +392,7 @@ def backtest_dfl_mdd(pred_model, opt_layer, rebal_samples, N, d, C,
 
     pred_model.eval()
     bt_inaccurate_log = []   # {"window", "n_inaccurate"}
+    infeas_log        = []   # solver 실패(=infeasible fallback) 기록 (Reviewer #4)
 
     for i, (z_np, r_np) in enumerate(tqdm(rebal_samples, desc="Backtesting")):
         z      = torch.tensor(z_np[None], dtype=torch.float32)
@@ -405,13 +409,18 @@ def backtest_dfl_mdd(pred_model, opt_layer, rebal_samples, N, d, C,
             Sigma_list = [torch.tensor(S, dtype=torch.float64)]
 
         y_hat = compute_cumulative_path(r_hat)
+        infeas_before = len(infeas_log)
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
             x_star = solve_portfolio(y_hat.detach(), opt_layer, n1, C, x_min, x_max,
-                                     Sigma_list if delta > 0 else None)
+                                     Sigma_list if delta > 0 else None,
+                                     infeas_counter=infeas_log)
             n_inaccurate = sum(
                 1 for warning in w if "Inaccurate" in str(warning.message)
             )
+        if len(infeas_log) > infeas_before:
+            # 이 윈도우에서 solver 실패 발생
+            pass
         if n_inaccurate > 0:
             bt_inaccurate_log.append({"window": i + 1, "n_inaccurate": n_inaccurate})
         y_real = compute_cumulative_path(r_real)
@@ -455,7 +464,21 @@ def backtest_dfl_mdd(pred_model, opt_layer, rebal_samples, N, d, C,
     else:
         print("\n  ✓ Backtest Inaccurate 없음")
 
-    return results, bt_inaccurate_log
+    # ── infeasibility rate (Reviewer #4) ──
+    n_win  = len(results)
+    n_inf  = len(infeas_log)
+    infeas_summary = {
+        "n_infeasible": n_inf,
+        "n_windows":    n_win,
+        "rate":         (n_inf / n_win) if n_win else float("nan"),
+    }
+    if n_inf > 0:
+        print(f"\n  ⚠ Infeasible(solver 실패) fallback: {n_inf}/{n_win} "
+              f"({infeas_summary['rate']:.2%})")
+    else:
+        print("\n  ✓ Infeasible 없음 (0%)")
+
+    return results, bt_inaccurate_log, infeas_summary
 
 # =============================================================================
 # PnL Plot

@@ -115,7 +115,7 @@ def plot_overall_comparison(dfl_results_store, all_results_pto_mdd, all_results_
                             DELTA_LIST, LAM_LIST, LOOKBACK_LIST,
                             N_STOCKS, PLOT_DIR,
                             full_dates=None, test_start_idx=None,
-                            tc_rate=0.0):
+                            tc_rate=0.0, bench_store=None):
     """
     Parameters
     ----------
@@ -126,10 +126,29 @@ def plot_overall_comparison(dfl_results_store, all_results_pto_mdd, all_results_
     LOOKBACK_LIST        : list of lookback values
     N_STOCKS             : int  (파일명용)
     PLOT_DIR             : str  (저장 경로)
+    bench_store          : dict or None  {label: results}
+                           예: {"EW": res, "GMV (LB=252)": res,
+                                "hist-MVO (LB=252)": res, ...}
+                           EW는 LB 무관 → 모든 LB 그래프에 표시.
+                           그 외는 라벨의 'LB={lb}'로 필터링.
     """
     DFL_CMAP = plt.cm.Blues
     MDD_CMAP = plt.cm.Greens
     MVO_CMAP = plt.cm.Reds
+
+    # 벤치마크별 고정 스타일 (color, linestyle)
+    BENCH_STYLE = {
+        "DFL-MVO":  ("#00B3B3", (0, (3, 1, 1, 1))),  # 청록 dash-dot-dot
+        "EW":       ("black",   (0, (1, 1))),        # 검정 점선 (기준선)
+        "GMV":      ("#8000FF", "-."),               # 보라 dash-dot
+        "hist-MVO": ("#CC6600", (0, (5, 2))),        # 주황 dashed
+    }
+
+    def _bench_style(label):
+        for key, style in BENCH_STYLE.items():
+            if label.startswith(key):
+                return style
+        return ("gray", "-")
 
     os.makedirs(PLOT_DIR, exist_ok=True)
 
@@ -181,6 +200,18 @@ def plot_overall_comparison(dfl_results_store, all_results_pto_mdd, all_results_
                 for (res, lbl), color in zip(mvo_lb, mvo_colors):
                     dd_last, xs_last = _plot_item(ax_pnl, ax_dd, res, lbl, color,
                                                   linewidth=2.0, linestyle=":", x_vals=x_vals)
+
+                # ── 벤치마크(EW/GMV/hist-MVO) 추가 ──
+                if bench_store is not None:
+                    for blbl, bres in bench_store.items():
+                        is_ew = blbl.startswith("EW")
+                        # EW는 항상, 그 외는 해당 LB만
+                        if not is_ew and f"LB={lb}" not in blbl:
+                            continue
+                        bcolor, bstyle = _bench_style(blbl)
+                        dd_last, xs_last = _plot_item(
+                            ax_pnl, ax_dd, bres, blbl, bcolor,
+                            linewidth=1.8, linestyle=bstyle, x_vals=x_vals)
 
                 tc_str = f"  |  TC={int(round(tc_rate*10000))}bps" if tc_rate > 0 else ""
                 ax_pnl.set_title(
