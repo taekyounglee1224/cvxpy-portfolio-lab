@@ -21,6 +21,7 @@ __all__ = [
     "PredictionModel",
     "build_optimization_layer",
     "solve_portfolio",
+    "min_achievable_dd",
     "compute_cumulative_path",
     "compute_realized_path",
     "compute_return",
@@ -111,6 +112,7 @@ def solve_portfolio(
     x_max: float,
     Sigma_list=None,          # list of (m,m) torch.Tensor, delta>0일 때만 사용
     infeas_counter=None,      # list (mutable): solver 실패 시 append (Reviewer #4)
+    solve_method="ECOS",      # diffcp forward solver: "ECOS" | "SCS" | "CLARABEL"
 ) -> torch.Tensor:
     batch, N, m = y_hat.shape
     n1C_val   = torch.tensor(n1 * C, dtype=torch.float64)
@@ -126,22 +128,65 @@ def solve_portfolio(
                 x_star_b, _ = opt_layer(
                     y_hat[b].double(), n1C_val, x_min_val, x_max_val,
                     L_b,
-                    solver_args={"solve_method": "ECOS"},
+                    solver_args={"solve_method": solve_method},
                 )
             else:
                 x_star_b, _ = opt_layer(
                     y_hat[b].double(), n1C_val, x_min_val, x_max_val,
-                    solver_args={"solve_method": "ECOS"},
+                    solver_args={"solve_method": solve_method},
                 )
+            # 예외는 없었지만 해가 무효인 경우 탐지.
+            # CLARABEL은 수치적 실패 시 예외 대신 x=0 (sum(x)==1 위반)을 반환한다.
+            s = float(x_star_b.detach().sum())
+            fail_reason = None if abs(s - 1.0) <= 1e-4 else f"invalid_sum={s:.2e}"
         except Exception as e:
+            fail_reason = str(e)[:120] or "solve_failed"
+
+        if fail_reason is not None:
             if infeas_counter is not None:
-                infeas_counter.append(str(e)[:120] or "solve_failed")
+                infeas_counter.append(fail_reason)
             x_raw     = torch.softmax(y_hat[b, -1, :], dim=0)
             x_clamped = torch.clamp(x_raw, min=x_min, max=x_max)
             x_star_b  = (x_clamped / x_clamped.sum()).double()
         x_stars.append(x_star_b.float())
 
     return torch.stack(x_stars, dim=0)
+
+
+def min_achievable_dd(y_hat_np, m, C, x_min, x_max):
+    """
+    주어진 예측 누적수익 경로에서 '달성 가능한 최소 drawdown' n1*를 계산.
+
+        min  n1   s.t.  u_0 = 0
+                        u_k - y_k'x <= n1*C,  u_k >= y_k'x,  u_k >= u_{k-1}
+                        x_min <= x <= x_max,  sum(x) = 1
+
+    목적함수(수익·위험)를 제거한 순수 feasibility 문제이므로,
+    n1* > n1(설정값) 이면 해당 윈도우는 **수치적 실패가 아니라 진짜 infeasible**이다.
+
+    Returns
+    -------
+    (n1_star, status) : n1_star는 실패 시 nan
+    """
+    N = y_hat_np.shape[0]
+    n1v = cp.Variable(nonneg=True)
+    x   = cp.Variable(m)
+    u   = cp.Variable(N + 1)
+    cons = [u[0] == 0]
+    for k in range(1, N + 1):
+        yk = y_hat_np[k - 1]
+        cons += [u[k] - yk @ x <= n1v * C,
+                 u[k] >= yk @ x,
+                 u[k] >= u[k - 1]]
+    cons += [x >= x_min, x <= x_max, cp.sum(x) == 1]
+    prob = cp.Problem(cp.Minimize(n1v), cons)
+    try:
+        prob.solve(solver=cp.CLARABEL)
+        val = float(n1v.value) if n1v.value is not None else float("nan")
+        return val, prob.status
+    except Exception as e:
+        return float("nan"), f"err:{str(e)[:40]}"
+
 
 
 
@@ -215,7 +260,7 @@ def dfl_loss(Sharpe: torch.Tensor, M_real: torch.Tensor, lam: float) -> torch.Te
 # Full Pipeline
 # =============================================================================
 def forward_pass(z, r_real, pred_model, opt_layer, n1, C, d, x_min, x_max, lam,
-                 is_mean=None, is_std=None, delta=0.0):
+                 is_mean=None, is_std=None, delta=0.0, solve_method="ECOS"):
     r_hat  = pred_model(z)
     y_hat  = compute_cumulative_path(r_hat)
 
@@ -236,7 +281,8 @@ def forward_pass(z, r_real, pred_model, opt_layer, n1, C, d, x_min, x_max, lam,
 
     # solve_portfolio에는 delta>0일 때만 Sigma 전달 (최적화 목적함수용)
     x_star = solve_portfolio(y_hat, opt_layer, n1, C, x_min, x_max,
-                             Sigma_list if delta > 0 else None)
+                             Sigma_list if delta > 0 else None,
+                             solve_method=solve_method)
     y_real = compute_cumulative_path(r_real)
     w_real = compute_realized_path(x_star, y_real)
     R_real = compute_return(w_real, d, C)
@@ -255,7 +301,7 @@ def train_dfl_mdd(pred_model, opt_layer, train_samples, val_samples=None,
                   n1=0.10, C=1.0, d=1.0, x_min=0.0, x_max=0.30, lam=0.3,
                   is_mean=None, is_std=None, delta=0.0,
                   patience=10, lr_patience=10, lr_factor=0.5,
-                  train_dates=None):
+                  train_dates=None, solve_method="ECOS"):
     """
     DFL-MDD 학습 함수.
     val_samples가 주어지면 매 epoch val loss를 계산하여 early stopping 수행.
@@ -297,6 +343,7 @@ def train_dfl_mdd(pred_model, opt_layer, train_samples, val_samples=None,
                     z_b, r_b, pred_model, opt_layer,
                     n1, C, d, x_min, x_max, lam,
                     is_mean=is_mean, is_std=is_std, delta=delta,
+                    solve_method=solve_method,
                 )
                 n_inaccurate = sum(
                     1 for warning in w if "Inaccurate" in str(warning.message)
@@ -332,6 +379,7 @@ def train_dfl_mdd(pred_model, opt_layer, train_samples, val_samples=None,
                         z_v, r_v, pred_model, opt_layer,
                         n1, C, d, x_min, x_max, lam,
                         is_mean=is_mean, is_std=is_std, delta=delta,
+                        solve_method=solve_method,
                     )
                 val_losses.append(res["loss"].item())
 
@@ -379,7 +427,7 @@ def train_dfl_mdd(pred_model, opt_layer, train_samples, val_samples=None,
 def backtest_dfl_mdd(pred_model, opt_layer, rebal_samples, N, d, C,
                      n1=0.10, x_min=0.0, x_max=0.30,
                      delta=0.0, is_mean=None, is_std=None,
-                     stock_names=None, rebal=None):
+                     stock_names=None, rebal=None, solve_method="ECOS"):
     m        = rebal_samples[0][1].shape[1]
     lookback = rebal_samples[0][0].shape[0] // m
     names    = stock_names if stock_names else [f"S{j+1}" for j in range(m)]
@@ -393,6 +441,8 @@ def backtest_dfl_mdd(pred_model, opt_layer, rebal_samples, N, d, C,
     pred_model.eval()
     bt_inaccurate_log = []   # {"window", "n_inaccurate"}
     infeas_log        = []   # solver 실패(=infeasible fallback) 기록 (Reviewer #4)
+    failed_windows    = []   # 실패한 윈도우 인덱스 (0-based)
+    min_n1_log        = []   # 실패 윈도우별 달성 가능 최소 drawdown
 
     for i, (z_np, r_np) in enumerate(tqdm(rebal_samples, desc="Backtesting")):
         z      = torch.tensor(z_np[None], dtype=torch.float32)
@@ -414,13 +464,26 @@ def backtest_dfl_mdd(pred_model, opt_layer, rebal_samples, N, d, C,
             warnings.simplefilter("always")
             x_star = solve_portfolio(y_hat.detach(), opt_layer, n1, C, x_min, x_max,
                                      Sigma_list if delta > 0 else None,
-                                     infeas_counter=infeas_log)
+                                     infeas_counter=infeas_log,
+                                     solve_method=solve_method)
             n_inaccurate = sum(
                 1 for warning in w if "Inaccurate" in str(warning.message)
             )
-        if len(infeas_log) > infeas_before:
-            # 이 윈도우에서 solver 실패 발생
-            pass
+        window_failed = len(infeas_log) > infeas_before
+        if window_failed:
+            failed_windows.append(i)      # 실패 윈도우 인덱스 기록
+
+        # 달성 가능한 최소 drawdown n1* — 전 윈도우에서 계산.
+        #   실패 윈도우 : 수치적 실패인지 진짜 infeasible인지 판별
+        #   성공 윈도우 : 명목 제약 n1 대비 여유(slack)를 정량화
+        mdd_min, st = min_achievable_dd(
+            y_hat[0].detach().double().numpy(), m, C, x_min, x_max)
+        min_n1_log.append({
+            "window": i, "min_n1": mdd_min, "status": st,
+            "failed": window_failed,
+            "true_infeasible": ((mdd_min > n1) if mdd_min == mdd_min else None)
+                               if window_failed else False,
+        })
         if n_inaccurate > 0:
             bt_inaccurate_log.append({"window": i + 1, "n_inaccurate": n_inaccurate})
         y_real = compute_cumulative_path(r_real)
@@ -468,15 +531,28 @@ def backtest_dfl_mdd(pred_model, opt_layer, rebal_samples, N, d, C,
     n_win  = len(results)
     n_inf  = len(infeas_log)
     infeas_summary = {
-        "n_infeasible": n_inf,
-        "n_windows":    n_win,
-        "rate":         (n_inf / n_win) if n_win else float("nan"),
+        "n_infeasible":   n_inf,
+        "n_windows":      n_win,
+        "rate":           (n_inf / n_win) if n_win else float("nan"),
+        "failed_windows": list(failed_windows),   # 실패 윈도우 인덱스
+        "min_n1_log":     list(min_n1_log),       # 실패 원인 분해
+        "n_true_infeas":  sum(1 for e in min_n1_log
+                              if e["failed"] and e["true_infeasible"] is True),
+        "n_numerical":    sum(1 for e in min_n1_log
+                              if e["failed"] and e["true_infeasible"] is False),
+        "solve_method":   solve_method,
     }
     if n_inf > 0:
-        print(f"\n  ⚠ Infeasible(solver 실패) fallback: {n_inf}/{n_win} "
-              f"({infeas_summary['rate']:.2%})")
+        print(f"\n  ⚠ Fallback 발생: {n_inf}/{n_win} ({infeas_summary['rate']:.2%})")
+        print(f"      진짜 infeasible {infeas_summary['n_true_infeas']} / "
+              f"수치적 실패 {infeas_summary['n_numerical']}")
+        need = [e["min_n1"] for e in min_n1_log
+                if e["failed"] and e["min_n1"] == e["min_n1"]]
+        if need:
+            print(f"      필요 최소 n1: 평균 {np.mean(need):.3f}, "
+                  f"최대 {np.max(need):.3f}  (설정 {n1})")
     else:
-        print("\n  ✓ Infeasible 없음 (0%)")
+        print("\n  ✓ Fallback 없음 (0%)")
 
     return results, bt_inaccurate_log, infeas_summary
 
