@@ -1,0 +1,23 @@
+# DFL-MDD 실행 환경  (python 3.11.8)
+# conda create -n dfl python=3.11.8 -y && conda activate dfl
+# pip install -r requirements.txt
+
+numpy==1.26.4
+pandas==2.3.3
+scipy==1.17.0
+
+torch==2.10.0
+
+cvxpy==1.7.5
+cvxpylayers==1.0.0
+diffcp==1.1.8
+ecos==2.0.14
+scs==3.2.9
+clarabel==0.11.1
+
+matplotlib==3.10.8
+seaborn==0.13.2
+tqdm==4.67.3
+
+jupyterlab
+ipywidgets
