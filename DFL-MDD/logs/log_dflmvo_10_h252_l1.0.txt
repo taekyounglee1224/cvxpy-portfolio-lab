@@ -1,0 +1,480 @@
+[16:39:29 +0:00:01] [MVO h252 d20 λ=1.0] 데이터 10 industries (10개 자산, 6539일)
+[16:39:29 +0:00:01] [MVO h252 d20 λ=1.0] HORIZON=252, solver=CLARABEL, delta=20, LOOKBACK [252, 504] × fold 8개
+[16:39:29 +0:00:01] [MVO h252 d20 λ=1.0] 체크포인트: ./checkpoint/dfl_mvo_10_inds_h252_d20_l1.0_CLARABEL.pkl
+[16:39:29 +0:00:01] [MVO h252 d20 λ=1.0] ── fold 1 (test=2018) ──
+
+── DFL-MVO Training (Val Early Stopping + LR Scheduler) ──
+  Epoch   1/100  train=-0.010211  val=-0.047660  lr=1.00e-04  *
+  Epoch   5/100  train=-0.023726  val=-0.037076  lr=1.00e-04  (4/20)
+  Epoch  10/100  train=-0.023627  val=-0.037076  lr=1.00e-04  (9/20)
+  Epoch  15/100  train=-0.023626  val=-0.037076  lr=5.00e-05  (14/20)
+  Epoch  20/100  train=-0.023586  val=-0.037076  lr=5.00e-05  (19/20)
+  Early stopping at epoch 21  (best val=-0.047660)
+
+  ✓ Inaccurate 없음
+
+── Backtest : DFL-MVO ──
+ Win    R_real    Sharpe    MDD(%)  Top-3 weights
+---------------------------------------------------------------------------
+Backtesting:   0%|          | 0/12 [00:00<?, ?it/s]    1    0.0576    0.2291   1.6375%  n= 1  {'Other': 1.0, 'Manuf': 0.0, 'Shops': 0.0}
+    2   -0.0384   -0.1539   8.8593%  n= 1  {'Other': 1.0, 'Utils': 0.0, 'Shops': 0.0}
+    3   -0.0231   -0.0868   7.7367%  n= 1  {'Other': 1.0, 'Enrgy': 0.0, 'Utils': 0.0}
+    4    0.0070    0.0253   2.3662%  n= 1  {'Other': 1.0, 'Manuf': 0.0, 'HiTec': 0.0}
+    5    0.0318    0.1141   2.7980%  n= 1  {'Other': 1.0, 'Manuf': 0.0, 'HiTec': 0.0}
+    6   -0.0150   -0.0537   4.3935%  n= 1  {'Other': 1.0, 'Manuf': 0.0, 'Hlth': 0.0}
+    7    0.0314    0.1121   0.9034%  n= 1  {'Other': 1.0, 'Manuf': 0.0, 'HiTec': 0.0}
+    8    0.0242    0.0860   1.7637%  n= 1  {'Other': 1.0, 'Enrgy': 0.0, 'Shops': 0.0}
+    9   -0.0125   -0.0446   2.7918%  n= 1  {'Other': 1.0, 'Telcm': 0.0, 'Manuf': 0.0}
+   10   -0.0848   -0.3040  10.6951%  n= 1  {'Other': 1.0, 'Telcm': 0.0, 'Manuf': 0.0}
+   11    0.0382    0.1311   5.2367%  n= 1  {'Other': 1.0, 'HiTec': 0.0, 'Utils': 0.0}
+   12   -0.0995   -0.3340  18.5371%  n= 1  {'Other': 1.0, 'Manuf': 0.0, 'Hlth': 0.0}
+Backtesting: 100%|██████████| 12/12 [00:00<00:00, 494.54it/s]
+
+  ✓ Backtest Inaccurate 없음
+
+  ✓ Infeasible 없음 (0%)
+[16:41:06 +0:01:37] [MVO h252 d20 λ=1.0]    LB=252  fallback 0/12 (0.0%)  [97s]
+
+── DFL-MVO Training (Val Early Stopping + LR Scheduler) ──
+  Epoch   1/100  train=-0.025586  val=-0.008087  lr=1.00e-04  *
+  Epoch   5/100  train=-0.033776  val=-0.008087  lr=1.00e-04  (4/20)
+  Epoch  10/100  train=-0.033779  val=-0.008087  lr=1.00e-04  (9/20)
+  Epoch  15/100  train=-0.033767  val=-0.008087  lr=1.00e-04  (14/20)
+  Epoch  20/100  train=-0.033729  val=-0.008087  lr=1.00e-04  (19/20)
+  Early stopping at epoch 21  (best val=-0.008087)
+
+  ✓ Inaccurate 없음
+
+── Backtest : DFL-MVO ──
+ Win    R_real    Sharpe    MDD(%)  Top-3 weights
+---------------------------------------------------------------------------
+Backtesting:   0%|          | 0/12 [00:00<?, ?it/s]    1    0.0285    0.0842   3.9401%  n= 1  {'Enrgy': 1.0, 'HiTec': 0.0, 'Other': 0.0}
+    2   -0.1032   -0.3210  12.6498%  n= 1  {'Enrgy': 1.0, 'Other': 0.0, 'Shops': 0.0}
+    3    0.0241    0.0752   3.2270%  n= 1  {'Enrgy': 1.0, 'NoDur': 0.0, 'Manuf': 0.0}
+    4    0.0963    0.3007   1.9454%  n= 1  {'Enrgy': 1.0, 'HiTec': 0.0, 'Manuf': 0.0}
+    5    0.0411    0.1286   5.5369%  n= 1  {'Enrgy': 1.0, 'Manuf': 0.0, 'Hlth': 0.0}
+    6   -0.0135   -0.0420   3.9837%  n= 1  {'Enrgy': 1.0, 'NoDur': 0.0, 'Hlth': 0.0}
+    7    0.0141    0.0442   3.7406%  n= 1  {'Enrgy': 1.0, 'Durbl': 0.0, 'Manuf': 0.0}
+    8   -0.0078   -0.0247   5.8912%  n= 1  {'Enrgy': 1.0, 'NoDur': 0.0, 'Telcm': 0.0}
+    9    0.0415    0.1307   2.5762%  n= 1  {'Enrgy': 1.0, 'Other': 0.0, 'Shops': 0.0}
+   10   -0.1455   -0.4675  17.8048%  n= 1  {'Enrgy': 1.0, 'Manuf': 0.0, 'HiTec': 0.0}
+   11   -0.0071   -0.0222   9.3860%  n= 1  {'Enrgy': 1.0, 'Shops': 0.0, 'Other': 0.0}
+   12   -0.1163   -0.3597  22.4278%  n= 1  {'Enrgy': 1.0, 'Manuf': 0.0, 'HiTec': 0.0}
+Backtesting: 100%|██████████| 12/12 [00:00<00:00, 713.01it/s]
+
+  ✓ Backtest Inaccurate 없음
+
+  ✓ Infeasible 없음 (0%)
+[16:42:43 +0:03:15] [MVO h252 d20 λ=1.0]    LB=504  fallback 0/12 (0.0%)  [97s]
+[16:42:43 +0:03:15] [MVO h252 d20 λ=1.0] 체크포인트 저장 (fold 1) — 누적 194s
+[16:42:43 +0:03:15] [MVO h252 d20 λ=1.0] ── fold 2 (test=2019) ──
+
+── DFL-MVO Training (Val Early Stopping + LR Scheduler) ──
+  Epoch   1/100  train=-0.022156  val=-0.048734  lr=1.00e-04  *
+  Epoch   5/100  train=-0.015233  val=-0.048734  lr=1.00e-04  (4/20)
+  Epoch  10/100  train=-0.015561  val=-0.048734  lr=1.00e-04  (9/20)
+  Epoch  15/100  train=-0.015599  val=-0.048734  lr=1.00e-04  (14/20)
+  Epoch  20/100  train=-0.015479  val=-0.048734  lr=1.00e-04  (19/20)
+  Early stopping at epoch 21  (best val=-0.048734)
+
+  ✓ Inaccurate 없음
+
+── Backtest : DFL-MVO ──
+ Win    R_real    Sharpe    MDD(%)  Top-3 weights
+---------------------------------------------------------------------------
+Backtesting:   0%|          | 0/13 [00:00<?, ?it/s]    1    0.0924    0.2516   4.3552%  n= 1  {'HiTec': 1.0, 'Manuf': 0.0, 'Durbl': 0.0}
+    2    0.0520    0.1594   1.0207%  n= 1  {'Manuf': 1.0, 'HiTec': 0.0, 'Other': 0.0}
+    3    0.0523    0.1431   2.9741%  n= 1  {'HiTec': 1.0, 'Manuf': 0.0, 'Durbl': 0.0}
+    4    0.0311    0.0874   1.4527%  n= 1  {'HiTec': 1.0, 'Manuf': 0.0, 'Shops': 0.0}
+    5   -0.1037   -0.2975  11.4765%  n= 1  {'HiTec': 1.0, 'Manuf': 0.0, 'Telcm': 0.0}
+    6    0.1189    0.3333   1.9128%  n= 1  {'HiTec': 1.0, 'Manuf': 0.0, 'Durbl': 0.0}
+    7   -0.0079   -0.0255   3.1058%  n= 1  {'Manuf': 1.0, 'HiTec': 0.0, 'Hlth': 0.0}
+    8   -0.0167   -0.0469   3.8966%  n= 1  {'HiTec': 1.0, 'Manuf': 0.0, 'Enrgy': 0.0}
+    9    0.0021    0.0057   2.6047%  n= 1  {'HiTec': 1.0, 'Manuf': 0.0, 'Enrgy': 0.0}
+   10    0.0460    0.1235   2.2429%  n= 1  {'HiTec': 1.0, 'Manuf': 0.0, 'Enrgy': 0.0}
+   11    0.0507    0.1422   0.7473%  n= 1  {'HiTec': 1.0, 'Manuf': 0.0, 'Shops': 0.0}
+   12    0.0135    0.0442   0.8481%  n= 1  {'Manuf': 1.0, 'HiTec': 0.0, 'Utils': 0.0}
+   13   -0.0273   -0.0959   4.6279%  n= 1  {'Manuf': 1.0, 'HiTec': 0.0, 'Enrgy': 0.0}
+Backtesting: 100%|██████████| 13/13 [00:00<00:00, 667.72it/s]
+
+  ✓ Backtest Inaccurate 없음
+
+  ✓ Infeasible 없음 (0%)
+[16:44:47 +0:05:18] [MVO h252 d20 λ=1.0]    LB=252  fallback 0/13 (0.0%)  [123s]
+
+── DFL-MVO Training (Val Early Stopping + LR Scheduler) ──
+  Epoch   1/100  train=-0.022669  val=-0.042915  lr=1.00e-04  *
+  Epoch   5/100  train=-0.024720  val=-0.036994  lr=1.00e-04  (4/20)
+  Epoch  10/100  train=-0.024705  val=-0.036994  lr=1.00e-04  (9/20)
+  Epoch  15/100  train=-0.024613  val=-0.036994  lr=5.00e-05  (14/20)
+  Epoch  20/100  train=-0.024657  val=-0.036994  lr=5.00e-05  (19/20)
+  Early stopping at epoch 21  (best val=-0.042915)
+
+  ✓ Inaccurate 없음
+
+── Backtest : DFL-MVO ──
+ Win    R_real    Sharpe    MDD(%)  Top-3 weights
+---------------------------------------------------------------------------
+Backtesting:   0%|          | 0/13 [00:00<?, ?it/s]    1    0.0812    0.2816   1.8891%  n= 1  {'Shops': 1.0, 'HiTec': 0.0, 'Telcm': 0.0}
+    2    0.0098    0.0335   1.7163%  n= 1  {'Shops': 1.0, 'Durbl': 0.0, 'Enrgy': 0.0}
+    3    0.0350    0.1195   2.6092%  n= 1  {'Shops': 1.0, 'Durbl': 0.0, 'Enrgy': 0.0}
+    4    0.0338    0.1148   1.2444%  n= 1  {'Shops': 1.0, 'HiTec': 0.0, 'Durbl': 0.0}
+    5   -0.0622   -0.2110   7.4874%  n= 1  {'Shops': 1.0, 'Enrgy': 0.0, 'Durbl': 0.0}
+    6    0.0904    0.3043   1.3261%  n= 1  {'Shops': 1.0, 'Durbl': 0.0, 'NoDur': 0.0}
+    7   -0.0093   -0.0313   4.3079%  n= 1  {'Shops': 1.0, 'HiTec': 0.0, 'Enrgy': 0.0}
+    8    0.0127    0.0427   3.3440%  n= 1  {'Shops': 1.0, 'Manuf': 0.0, 'Enrgy': 0.0}
+    9    0.0012    0.0040   2.7678%  n= 1  {'Shops': 1.0, 'Durbl': 0.0, 'Hlth': 0.0}
+   10    0.0203    0.0670   1.2526%  n= 1  {'Shops': 1.0, 'HiTec': 0.0, 'Enrgy': 0.0}
+   11    0.0507    0.1482   0.7473%  n= 1  {'HiTec': 1.0, 'Shops': 0.0, 'Hlth': 0.0}
+   12    0.0136    0.0449   0.9966%  n= 1  {'Shops': 1.0, 'Durbl': 0.0, 'Enrgy': 0.0}
+   13    0.0099    0.0327   2.0444%  n= 1  {'Shops': 1.0, 'Manuf': 0.0, 'Durbl': 0.0}
+Backtesting: 100%|██████████| 13/13 [00:00<00:00, 642.51it/s]
+
+  ✓ Backtest Inaccurate 없음
+
+  ✓ Infeasible 없음 (0%)
+[16:46:40 +0:07:11] [MVO h252 d20 λ=1.0]    LB=504  fallback 0/13 (0.0%)  [113s]
+[16:46:40 +0:07:11] [MVO h252 d20 λ=1.0] 체크포인트 저장 (fold 2) — 누적 431s
+[16:46:40 +0:07:11] [MVO h252 d20 λ=1.0] ── fold 3 (test=2020) ──
+
+── DFL-MVO Training (Val Early Stopping + LR Scheduler) ──
+  Epoch   1/100  train=-0.021385  val=-0.033631  lr=1.00e-04  *
+  Epoch   5/100  train=-0.019555  val=-0.033631  lr=1.00e-04  (4/20)
+  Epoch  10/100  train=-0.019810  val=-0.033631  lr=1.00e-04  (9/20)
+  Epoch  15/100  train=-0.019484  val=-0.033631  lr=1.00e-04  (14/20)
+  Epoch  20/100  train=-0.019502  val=-0.033631  lr=1.00e-04  (19/20)
+  Early stopping at epoch 21  (best val=-0.033631)
+
+  ✓ Inaccurate 없음
+
+── Backtest : DFL-MVO ──
+ Win    R_real    Sharpe    MDD(%)  Top-3 weights
+---------------------------------------------------------------------------
+Backtesting:   0%|          | 0/13 [00:00<?, ?it/s]    1    0.0344    0.1101   2.9826%  n= 1  {'HiTec': 1.0, 'Manuf': 0.0, 'Enrgy': 0.0}
+    2   -0.0566   -0.1882  13.6083%  n= 1  {'HiTec': 1.0, 'Shops': 0.0, 'Manuf': 0.0}
+    3   -0.1223   -0.3746  23.7912%  n= 1  {'HiTec': 1.0, 'Shops': 0.0, 'Manuf': 0.0}
+    4    0.1681    0.3440   4.6281%  n= 1  {'HiTec': 1.0, 'Enrgy': 0.0, 'Other': 0.0}
+    5    0.1145    0.2216   3.5718%  n= 1  {'HiTec': 1.0, 'Utils': 0.0, 'Durbl': 0.0}
+    6    0.0543    0.1056   5.2904%  n= 1  {'HiTec': 1.0, 'Hlth': 0.0, 'Utils': 0.0}
+    7    0.0616    0.1182   3.6833%  n= 1  {'HiTec': 1.0, 'Manuf': 0.0, 'Enrgy': 0.0}
+    8    0.1024    0.1946   3.5150%  n= 1  {'HiTec': 1.0, 'Utils': 0.0, 'Durbl': 0.0}
+    9   -0.0485   -0.0934  12.7942%  n= 1  {'HiTec': 1.0, 'Telcm': 0.0, 'Durbl': 0.0}
+   10    0.0075    0.0141   7.0757%  n= 1  {'HiTec': 1.0, 'Durbl': 0.0, 'Enrgy': 0.0}
+   11    0.0821    0.1525   3.6243%  n= 1  {'HiTec': 1.0, 'Other': 0.0, 'Durbl': 0.0}
+   12    0.0476    0.0872   1.8783%  n= 1  {'HiTec': 1.0, 'Telcm': 0.0, 'Enrgy': 0.0}
+   13    0.0350    0.0640   3.5619%  n= 1  {'HiTec': 1.0, 'Other': 0.0, 'Hlth': 0.0}
+Backtesting: 100%|██████████| 13/13 [00:00<00:00, 535.62it/s]
+
+  ✓ Backtest Inaccurate 없음
+
+  ✓ Infeasible 없음 (0%)
+[16:48:57 +0:09:28] [MVO h252 d20 λ=1.0]    LB=252  fallback 0/13 (0.0%)  [137s]
+
+── DFL-MVO Training (Val Early Stopping + LR Scheduler) ──
+  Epoch   1/100  train=-0.023903  val=-0.012255  lr=1.00e-04  *
+  Epoch   5/100  train=-0.029736  val=-0.012101  lr=1.00e-04  (3/20)
+  Epoch  10/100  train=-0.030533  val=-0.012101  lr=1.00e-04  (8/20)
+  Epoch  15/100  train=-0.030482  val=-0.012101  lr=5.00e-05  (13/20)
+  Epoch  20/100  train=-0.030397  val=-0.012101  lr=5.00e-05  (18/20)
+  Early stopping at epoch 22  (best val=-0.024945)
+
+  ✓ Inaccurate 없음
+
+── Backtest : DFL-MVO ──
+ Win    R_real    Sharpe    MDD(%)  Top-3 weights
+---------------------------------------------------------------------------
+Backtesting:   0%|          | 0/13 [00:00<?, ?it/s]    1    0.0099    0.0327   2.0444%  n= 1  {'Shops': 1.0, 'NoDur': 0.0, 'Telcm': 0.0}
+    2   -0.0448   -0.1481  11.8692%  n= 1  {'Shops': 1.0, 'NoDur': 0.0, 'Telcm': 0.0}
+    3   -0.1456   -0.5387  30.1369%  n= 1  {'NoDur': 1.0, 'Shops': 0.0, 'Telcm': 0.0}
+    4    0.1121    0.3142   3.8727%  n= 1  {'Telcm': 1.0, 'NoDur': 0.0, 'HiTec': 0.0}
+    5    0.0638    0.1777   2.9841%  n= 1  {'NoDur': 1.0, 'Shops': 0.0, 'Telcm': 0.0}
+    6   -0.0095   -0.0263   8.2027%  n= 1  {'NoDur': 1.0, 'Shops': 0.0, 'Other': 0.0}
+    7    0.0761    0.2012   1.6634%  n= 1  {'Shops': 1.0, 'NoDur': 0.0, 'Hlth': 0.0}
+    8    0.0438    0.1185   0.9134%  n= 1  {'NoDur': 1.0, 'Shops': 0.0, 'Telcm': 0.0}
+    9   -0.0196   -0.0531   7.1987%  n= 1  {'NoDur': 1.0, 'Telcm': 0.0, 'Shops': 0.0}
+   10   -0.0172   -0.0463   6.5340%  n= 1  {'NoDur': 1.0, 'Utils': 0.0, 'Manuf': 0.0}
+   11    0.0535    0.1388   2.7494%  n= 1  {'Shops': 1.0, 'NoDur': 0.0, 'Telcm': 0.0}
+   12    0.0432    0.1158   1.3206%  n= 1  {'NoDur': 1.0, 'Enrgy': 0.0, 'Other': 0.0}
+   13    0.0146    0.0391   3.5262%  n= 1  {'Shops': 1.0, 'NoDur': 0.0, 'Telcm': 0.0}
+Backtesting: 100%|██████████| 13/13 [00:00<00:00, 603.73it/s]
+
+  ✓ Backtest Inaccurate 없음
+
+  ✓ Infeasible 없음 (0%)
+[16:51:12 +0:11:43] [MVO h252 d20 λ=1.0]    LB=504  fallback 0/13 (0.0%)  [135s]
+[16:51:12 +0:11:43] [MVO h252 d20 λ=1.0] 체크포인트 저장 (fold 3) — 누적 702s
+[16:51:12 +0:11:43] [MVO h252 d20 λ=1.0] ── fold 4 (test=2021) ──
+
+── DFL-MVO Training (Val Early Stopping + LR Scheduler) ──
+  Epoch   1/100  train=-0.023204  val=-0.040037  lr=1.00e-04  *
+  Epoch   5/100  train=-0.027281  val=-0.040037  lr=1.00e-04  (4/20)
+  Epoch  10/100  train=-0.027044  val=-0.040037  lr=1.00e-04  (9/20)
+  Epoch  15/100  train=-0.027299  val=-0.040037  lr=1.00e-04  (14/20)
+  Epoch  20/100  train=-0.027284  val=-0.040037  lr=1.00e-04  (19/20)
+  Early stopping at epoch 21  (best val=-0.040037)
+
+  ✓ Inaccurate 없음
+
+── Backtest : DFL-MVO ──
+ Win    R_real    Sharpe    MDD(%)  Top-3 weights
+---------------------------------------------------------------------------
+Backtesting:   0%|          | 0/13 [00:00<?, ?it/s]    1    0.0260    0.0574   3.5204%  n= 1  {'Shops': 1.0, 'Utils': 0.0, 'NoDur': 0.0}
+    2   -0.0664   -0.1458   8.2457%  n= 1  {'Shops': 1.0, 'Other': 0.0, 'Durbl': 0.0}
+    3    0.1100    0.2475   1.6822%  n= 1  {'Shops': 1.0, 'Utils': 0.0, 'Durbl': 0.0}
+    4    0.0315    0.0920   1.5159%  n= 1  {'Shops': 1.0, 'Other': 0.0, 'Hlth': 0.0}
+    5   -0.0192   -0.0606   4.5842%  n= 1  {'Shops': 1.0, 'HiTec': 0.0, 'Other': 0.0}
+    6    0.0466    0.1473   0.8603%  n= 1  {'Shops': 1.0, 'Utils': 0.0, 'Enrgy': 0.0}
+    7    0.0010    0.0033   4.0569%  n= 1  {'Shops': 1.0, 'Utils': 0.0, 'Manuf': 0.0}
+    8    0.0169    0.0555   2.2145%  n= 1  {'Shops': 1.0, 'HiTec': 0.0, 'Utils': 0.0}
+    9   -0.0428   -0.1414   4.6212%  n= 1  {'Shops': 1.0, 'Other': 0.0, 'Durbl': 0.0}
+   10    0.0486    0.1683   1.0507%  n= 1  {'Shops': 1.0, 'Enrgy': 0.0, 'Durbl': 0.0}
+   11    0.0007    0.0025   5.5409%  n= 1  {'Shops': 1.0, 'Other': 0.0, 'Enrgy': 0.0}
+   12    0.0314    0.1136   3.8654%  n= 1  {'Shops': 1.0, 'Telcm': 0.0, 'Other': 0.0}
+   13   -0.0825   -0.2944  14.0167%  n= 1  {'Shops': 1.0, 'Enrgy': 0.0, 'Durbl': 0.0}
+Backtesting: 100%|██████████| 13/13 [00:00<00:00, 630.94it/s]
+
+  ✓ Backtest Inaccurate 없음
+
+  ✓ Infeasible 없음 (0%)
+[16:53:42 +0:14:13] [MVO h252 d20 λ=1.0]    LB=252  fallback 0/13 (0.0%)  [150s]
+
+── DFL-MVO Training (Val Early Stopping + LR Scheduler) ──
+  Epoch   1/100  train=-0.028789  val=-0.041355  lr=1.00e-04  *
+  Epoch   5/100  train=-0.029121  val=-0.041355  lr=1.00e-04  (4/20)
+  Epoch  10/100  train=-0.029006  val=-0.041355  lr=1.00e-04  (9/20)
+  Epoch  15/100  train=-0.029271  val=-0.041355  lr=1.00e-04  (14/20)
+  Epoch  20/100  train=-0.029274  val=-0.041355  lr=1.00e-04  (19/20)
+  Early stopping at epoch 21  (best val=-0.041355)
+
+  ✓ Inaccurate 없음
+
+── Backtest : DFL-MVO ──
+ Win    R_real    Sharpe    MDD(%)  Top-3 weights
+---------------------------------------------------------------------------
+Backtesting:   0%|          | 0/13 [00:00<?, ?it/s]    1    0.0096    0.0223   3.1308%  n= 1  {'Utils': 1.0, 'Manuf': 0.0, 'Other': 0.0}
+    2   -0.0460   -0.1067   7.2632%  n= 1  {'Utils': 1.0, 'Durbl': 0.0, 'HiTec': 0.0}
+    3    0.0967    0.2235   2.0545%  n= 1  {'Utils': 1.0, 'Other': 0.0, 'HiTec': 0.0}
+    4    0.0287    0.0662   2.3961%  n= 1  {'Utils': 1.0, 'HiTec': 0.0, 'Durbl': 0.0}
+    5    0.0004    0.0009   3.2121%  n= 1  {'Utils': 1.0, 'Manuf': 0.0, 'Durbl': 0.0}
+    6    0.0901    0.2003   1.0883%  n= 1  {'HiTec': 1.0, 'Utils': 0.0, 'Manuf': 0.0}
+    7    0.0301    0.0692   1.8591%  n= 1  {'Utils': 1.0, 'HiTec': 0.0, 'Hlth': 0.0}
+    8    0.0306    0.0703   1.5031%  n= 1  {'Utils': 1.0, 'HiTec': 0.0, 'Manuf': 0.0}
+    9   -0.0579   -0.1332   7.1521%  n= 1  {'Utils': 1.0, 'Shops': 0.0, 'Hlth': 0.0}
+   10    0.0538    0.1235   1.6867%  n= 1  {'Utils': 1.0, 'HiTec': 0.0, 'Other': 0.0}
+   11   -0.0247   -0.0566   3.5407%  n= 1  {'Utils': 1.0, 'HiTec': 0.0, 'Enrgy': 0.0}
+   12    0.0829    0.1895   1.4052%  n= 1  {'Utils': 1.0, 'Manuf': 0.0, 'HiTec': 0.0}
+   13   -0.0308   -0.0703   5.0402%  n= 1  {'Utils': 1.0, 'Durbl': 0.0, 'Enrgy': 0.0}
+Backtesting: 100%|██████████| 13/13 [00:00<00:00, 605.10it/s]
+
+  ✓ Backtest Inaccurate 없음
+
+  ✓ Infeasible 없음 (0%)
+[16:56:05 +0:16:36] [MVO h252 d20 λ=1.0]    LB=504  fallback 0/13 (0.0%)  [143s]
+[16:56:05 +0:16:36] [MVO h252 d20 λ=1.0] 체크포인트 저장 (fold 4) — 누적 996s
+[16:56:05 +0:16:36] [MVO h252 d20 λ=1.0] ── fold 5 (test=2022) ──
+
+── DFL-MVO Training (Val Early Stopping + LR Scheduler) ──
+  Epoch   1/100  train=-0.016921  val=-0.017681  lr=1.00e-04  *
+  Epoch   5/100  train=-0.020751  val=-0.073287  lr=1.00e-04  (3/20)
+  Epoch  10/100  train=-0.020757  val=-0.073287  lr=1.00e-04  (8/20)
+  Epoch  15/100  train=-0.020758  val=-0.073287  lr=1.00e-04  (13/20)
+  Epoch  20/100  train=-0.020761  val=-0.073287  lr=1.00e-04  (18/20)
+  Early stopping at epoch 22  (best val=-0.073287)
+
+  ✓ Inaccurate 없음
+
+── Backtest : DFL-MVO ──
+ Win    R_real    Sharpe    MDD(%)  Top-3 weights
+---------------------------------------------------------------------------
+Backtesting:   0%|          | 0/12 [00:00<?, ?it/s]    1   -0.0789   -0.2395  15.5961%  n= 1  {'HiTec': 1.0, 'Manuf': 0.0, 'Durbl': 0.0}
+    2   -0.0586   -0.1735  11.7891%  n= 1  {'HiTec': 1.0, 'Other': 0.0, 'Manuf': 0.0}
+    3    0.0495    0.1414   6.2023%  n= 1  {'HiTec': 1.0, 'Other': 0.0, 'Enrgy': 0.0}
+    4   -0.1110   -0.3096  15.2557%  n= 1  {'HiTec': 1.0, 'Enrgy': 0.0, 'Other': 0.0}
+    5   -0.0076   -0.0201  12.8755%  n= 1  {'HiTec': 1.0, 'Telcm': 0.0, 'Durbl': 0.0}
+    6   -0.0794   -0.1961  13.3515%  n= 1  {'HiTec': 1.0, 'Other': 0.0, 'NoDur': 0.0}
+    7    0.1110    0.2605   4.5822%  n= 1  {'HiTec': 1.0, 'Other': 0.0, 'Enrgy': 0.0}
+    8   -0.0792   -0.1804  11.1711%  n= 1  {'HiTec': 1.0, 'Other': 0.0, 'Durbl': 0.0}
+    9   -0.0826   -0.1846  14.7418%  n= 1  {'HiTec': 1.0, 'Enrgy': 0.0, 'Durbl': 0.0}
+   10    0.0122    0.0267   8.0336%  n= 1  {'HiTec': 1.0, 'Other': 0.0, 'Hlth': 0.0}
+   11    0.0749    0.1583   3.4988%  n= 1  {'HiTec': 1.0, 'Other': 0.0, 'Hlth': 0.0}
+   12   -0.0908   -0.1836  10.6838%  n= 1  {'HiTec': 1.0, 'Other': 0.0, 'Utils': 0.0}
+Backtesting: 100%|██████████| 12/12 [00:00<00:00, 601.72it/s]
+
+  ✓ Backtest Inaccurate 없음
+
+  ✓ Infeasible 없음 (0%)
+[16:58:56 +0:19:27] [MVO h252 d20 λ=1.0]    LB=252  fallback 0/12 (0.0%)  [171s]
+
+── DFL-MVO Training (Val Early Stopping + LR Scheduler) ──
+  Epoch   1/100  train=-0.026484  val=-0.027337  lr=1.00e-04  *
+  Epoch   5/100  train=-0.028884  val=-0.027337  lr=1.00e-04  (4/20)
+  Epoch  10/100  train=-0.028662  val=-0.027337  lr=1.00e-04  (9/20)
+  Epoch  15/100  train=-0.028963  val=-0.027337  lr=1.00e-04  (14/20)
+  Epoch  20/100  train=-0.029109  val=-0.027337  lr=1.00e-04  (19/20)
+  Early stopping at epoch 21  (best val=-0.027337)
+
+  ✓ Inaccurate 없음
+
+── Backtest : DFL-MVO ──
+ Win    R_real    Sharpe    MDD(%)  Top-3 weights
+---------------------------------------------------------------------------
+Backtesting:   0%|          | 0/12 [00:00<?, ?it/s]    1   -0.0308   -0.0703   5.0402%  n= 1  {'Utils': 1.0, 'Enrgy': 0.0, 'Telcm': 0.0}
+    2   -0.0586   -0.1286  11.7891%  n= 1  {'HiTec': 1.0, 'Utils': 0.0, 'Hlth': 0.0}
+    3    0.0861    0.1996   2.2069%  n= 1  {'Utils': 1.0, 'HiTec': 0.0, 'Enrgy': 0.0}
+    4   -0.0528   -0.1607   7.9063%  n= 1  {'Utils': 1.0, 'Shops': 0.0, 'Enrgy': 0.0}
+    5    0.0570    0.1869   2.9406%  n= 1  {'Utils': 1.0, 'Hlth': 0.0, 'Enrgy': 0.0}
+    6   -0.0826   -0.2753  15.5145%  n= 1  {'Utils': 1.0, 'HiTec': 0.0, 'Durbl': 0.0}
+    7    0.0746    0.2475   1.2736%  n= 1  {'Utils': 1.0, 'HiTec': 0.0, 'Durbl': 0.0}
+    8    0.0096    0.0320   4.3079%  n= 1  {'Utils': 1.0, 'Enrgy': 0.0, 'HiTec': 0.0}
+    9   -0.1000   -0.3340  15.9436%  n= 1  {'Utils': 1.0, 'Shops': 0.0, 'HiTec': 0.0}
+   10    0.0110    0.0360   9.7108%  n= 1  {'Utils': 1.0, 'Enrgy': 0.0, 'Hlth': 0.0}
+   11   -0.0037   -0.0071   5.1229%  n= 1  {'Enrgy': 1.0, 'Utils': 0.0, 'HiTec': 0.0}
+   12   -0.0106   -0.0339   3.5294%  n= 1  {'Utils': 1.0, 'HiTec': 0.0, 'Enrgy': 0.0}
+Backtesting: 100%|██████████| 12/12 [00:00<00:00, 616.18it/s]
+
+  ✓ Backtest Inaccurate 없음
+
+  ✓ Infeasible 없음 (0%)
+[17:01:31 +0:22:02] [MVO h252 d20 λ=1.0]    LB=504  fallback 0/12 (0.0%)  [155s]
+[17:01:31 +0:22:02] [MVO h252 d20 λ=1.0] 체크포인트 저장 (fold 5) — 누적 1321s
+[17:01:31 +0:22:02] [MVO h252 d20 λ=1.0] ── fold 6 (test=2023) ──
+
+── DFL-MVO Training (Val Early Stopping + LR Scheduler) ──
+  Epoch   1/100  train=-0.026854  val=-0.035831  lr=1.00e-04  *
+  Epoch   5/100  train=-0.024871  val=-0.038635  lr=1.00e-04  (2/20)
+  Epoch  10/100  train=-0.028241  val=-0.029743  lr=1.00e-04  (7/20)
+  Epoch  15/100  train=-0.028261  val=-0.029743  lr=5.00e-05  (12/20)
+  Epoch  20/100  train=-0.028248  val=-0.029743  lr=5.00e-05  (17/20)
+  Early stopping at epoch 23  (best val=-0.064937)
+
+  ✓ Inaccurate 없음
+
+── Backtest : DFL-MVO ──
+ Win    R_real    Sharpe    MDD(%)  Top-3 weights
+---------------------------------------------------------------------------
+Backtesting:   0%|          | 0/12 [00:00<?, ?it/s]    1    0.1163    0.2352   2.0509%  n= 1  {'HiTec': 1.0, 'Manuf': 0.0, 'Other': 0.0}
+    2    0.0075    0.0153   6.5069%  n= 1  {'HiTec': 1.0, 'Manuf': 0.0, 'Utils': 0.0}
+    3    0.0720    0.1486   4.1260%  n= 1  {'HiTec': 1.0, 'Other': 0.0, 'Manuf': 0.0}
+    4   -0.0123   -0.0260   3.8923%  n= 1  {'HiTec': 1.0, 'Manuf': 0.0, 'Enrgy': 0.0}
+    5    0.1202    0.2622   1.9346%  n= 1  {'HiTec': 1.0, 'Manuf': 0.0, 'Other': 0.0}
+    6    0.0347    0.0794   3.6785%  n= 1  {'HiTec': 1.0, 'Manuf': 0.0, 'Telcm': 0.0}
+    7    0.0177    0.0425   2.7149%  n= 1  {'HiTec': 1.0, 'Manuf': 0.0, 'Telcm': 0.0}
+    8    0.0158    0.0389   4.3369%  n= 1  {'HiTec': 1.0, 'Manuf': 0.0, 'Other': 0.0}
+    9   -0.0701   -0.1760   7.9649%  n= 1  {'HiTec': 1.0, 'Manuf': 0.0, 'Telcm': 0.0}
+   10    0.0059    0.0152   7.9285%  n= 1  {'HiTec': 1.0, 'Manuf': 0.0, 'Enrgy': 0.0}
+   11    0.1021    0.2759   0.5808%  n= 1  {'HiTec': 1.0, 'Manuf': 0.0, 'Other': 0.0}
+   12    0.0098    0.0290   3.5530%  n= 1  {'HiTec': 1.0, 'Manuf': 0.0, 'Other': 0.0}
+Backtesting: 100%|██████████| 12/12 [00:00<00:00, 648.58it/s]
+
+  ✓ Backtest Inaccurate 없음
+
+  ✓ Infeasible 없음 (0%)
+[17:04:45 +0:25:16] [MVO h252 d20 λ=1.0]    LB=252  fallback 0/12 (0.0%)  [194s]
+
+── DFL-MVO Training (Val Early Stopping + LR Scheduler) ──
+  Epoch   1/100  train=-0.030112  val=-0.023754  lr=1.00e-04  *
+  Epoch   5/100  train=-0.031752  val=-0.023754  lr=1.00e-04  (4/20)
+  Epoch  10/100  train=-0.028439  val=-0.079700  lr=1.00e-04  (1/20)
+  Epoch  15/100  train=-0.031702  val=-0.079700  lr=1.00e-04  (6/20)
+  Epoch  20/100  train=-0.031724  val=-0.023754  lr=1.00e-04  (11/20)
+  Epoch  25/100  train=-0.031725  val=-0.023754  lr=1.00e-04  (16/20)
+  Early stopping at epoch 29  (best val=-0.079700)
+
+  ✓ Inaccurate 없음
+
+── Backtest : DFL-MVO ──
+ Win    R_real    Sharpe    MDD(%)  Top-3 weights
+---------------------------------------------------------------------------
+Backtesting:   0%|          | 0/12 [00:00<?, ?it/s]    1    0.0065    0.0228   4.0162%  n= 1  {'NoDur': 1.0, 'Durbl': 0.0, 'Hlth': 0.0}
+    2   -0.0245   -0.0856   3.2632%  n= 1  {'NoDur': 1.0, 'Durbl': 0.0, 'Enrgy': 0.0}
+    3    0.0298    0.1043   2.5190%  n= 1  {'NoDur': 1.0, 'Durbl': 0.0, 'Telcm': 0.0}
+    4    0.0226    0.0794   0.7762%  n= 1  {'NoDur': 1.0, 'Telcm': 0.0, 'Durbl': 0.0}
+    5   -0.0279   -0.0982   5.8122%  n= 1  {'NoDur': 1.0, 'Hlth': 0.0, 'Durbl': 0.0}
+    6    0.0110    0.0387   1.2569%  n= 1  {'NoDur': 1.0, 'Durbl': 0.0, 'Hlth': 0.0}
+    7   -0.0507   -0.0771   9.9181%  n= 1  {'Durbl': 1.0, 'NoDur': 0.0, 'Hlth': 0.0}
+    8   -0.0381   -0.1343   4.1917%  n= 1  {'NoDur': 1.0, 'Durbl': 0.0, 'Hlth': 0.0}
+    9   -0.0639   -0.2251   6.8279%  n= 1  {'NoDur': 1.0, 'Durbl': 0.0, 'Telcm': 0.0}
+   10   -0.0114   -0.0402   4.6664%  n= 1  {'NoDur': 1.0, 'Durbl': 0.0, 'Enrgy': 0.0}
+   11    0.0579    0.2018   1.0238%  n= 1  {'NoDur': 1.0, 'Durbl': 0.0, 'Other': 0.0}
+   12    0.0313    0.1094   2.6780%  n= 1  {'NoDur': 1.0, 'Telcm': 0.0, 'Durbl': 0.0}
+Backtesting: 100%|██████████| 12/12 [00:00<00:00, 529.64it/s]
+
+  ✓ Backtest Inaccurate 없음
+
+  ✓ Infeasible 없음 (0%)
+[17:08:55 +0:29:26] [MVO h252 d20 λ=1.0]    LB=504  fallback 0/12 (0.0%)  [250s]
+[17:08:55 +0:29:26] [MVO h252 d20 λ=1.0] 체크포인트 저장 (fold 6) — 누적 1765s
+[17:08:55 +0:29:26] [MVO h252 d20 λ=1.0] ── fold 7 (test=2024) ──
+
+── DFL-MVO Training (Val Early Stopping + LR Scheduler) ──
+  Epoch   1/100  train=-0.026815  val=-0.029794  lr=1.00e-04  *
+  Epoch   5/100  train=-0.028446  val=-0.033099  lr=1.00e-04  *
+  Epoch  10/100  train=-0.026283  val=-0.029794  lr=1.00e-04  (5/20)
+  Epoch  15/100  train=-0.026258  val=-0.029794  lr=1.00e-04  (10/20)
+  Epoch  20/100  train=-0.026274  val=-0.029794  lr=5.00e-05  (15/20)
+  Epoch  25/100  train=-0.026302  val=-0.029794  lr=5.00e-05  (20/20)
+  Early stopping at epoch 25  (best val=-0.033099)
+
+  ✓ Inaccurate 없음
+
+── Backtest : DFL-MVO ──
+ Win    R_real    Sharpe    MDD(%)  Top-3 weights
+---------------------------------------------------------------------------
+Backtesting:   0%|          | 0/12 [00:00<?, ?it/s]    1   -0.0112   -0.0387   3.3535%  n= 1  {'Manuf': 1.0, 'Enrgy': 0.0, 'Utils': 0.0}
+    2    0.0576    0.2023   1.6010%  n= 1  {'Manuf': 1.0, 'Utils': 0.0, 'HiTec': 0.0}
+    3    0.0276    0.0977   1.1543%  n= 1  {'Manuf': 1.0, 'Durbl': 0.0, 'Enrgy': 0.0}
+    4   -0.0325   -0.1186   3.7425%  n= 1  {'Manuf': 1.0, 'HiTec': 0.0, 'Durbl': 0.0}
+    5    0.0361    0.1330   3.0884%  n= 1  {'Manuf': 1.0, 'Utils': 0.0, 'Durbl': 0.0}
+    6   -0.0253   -0.0940   3.2615%  n= 1  {'Manuf': 1.0, 'Durbl': 0.0, 'HiTec': 0.0}
+    7    0.0236    0.0896   3.6300%  n= 1  {'Manuf': 1.0, 'Utils': 0.0, 'Enrgy': 0.0}
+    8    0.0357    0.1324   1.8297%  n= 1  {'Manuf': 1.0, 'Enrgy': 0.0, 'Durbl': 0.0}
+    9    0.0607    0.2053   1.3120%  n= 1  {'Utils': 1.0, 'Manuf': 0.0, 'Enrgy': 0.0}
+   10   -0.0251   -0.0915   3.5993%  n= 1  {'Manuf': 1.0, 'Durbl': 0.0, 'Other': 0.0}
+   11    0.0487    0.1795   2.7200%  n= 1  {'Manuf': 1.0, 'Utils': 0.0, 'Other': 0.0}
+   12   -0.0807   -0.2964   8.4140%  n= 1  {'Manuf': 1.0, 'Utils': 0.0, 'Telcm': 0.0}
+Backtesting: 100%|██████████| 12/12 [00:00<00:00, 605.33it/s]
+
+  ✓ Backtest Inaccurate 없음
+
+  ✓ Infeasible 없음 (0%)
+[17:12:42 +0:33:13] [MVO h252 d20 λ=1.0]    LB=252  fallback 0/12 (0.0%)  [228s]
+
+── DFL-MVO Training (Val Early Stopping + LR Scheduler) ──
+  Epoch   1/100  train=-0.024262  val=-0.015207  lr=1.00e-04  *
+  Epoch   5/100  train=-0.029091  val=-0.038575  lr=1.00e-04  (3/20)
+  Epoch  10/100  train=-0.029095  val=-0.038575  lr=1.00e-04  (8/20)
+  Epoch  15/100  train=-0.029087  val=-0.038575  lr=1.00e-04  (13/20)
+  Epoch  20/100  train=-0.029103  val=-0.038575  lr=1.00e-04  (18/20)
+  Early stopping at epoch 22  (best val=-0.038575)
+
+  ✓ Inaccurate 없음
+
+── Backtest : DFL-MVO ──
+ Win    R_real    Sharpe    MDD(%)  Top-3 weights
+---------------------------------------------------------------------------
+Backtesting:   0%|          | 0/12 [00:00<?, ?it/s]    1   -0.0112   -0.0335   3.3535%  n= 1  {'Manuf': 1.0, 'Other': 0.0, 'Utils': 0.0}
+    2    0.0576    0.1726   1.6010%  n= 1  {'Manuf': 1.0, 'Telcm': 0.0, 'Durbl': 0.0}
+    3    0.0276    0.0835   1.1543%  n= 1  {'Manuf': 1.0, 'Telcm': 0.0, 'Utils': 0.0}
+    4   -0.0325   -0.0995   3.7425%  n= 1  {'Manuf': 1.0, 'Telcm': 0.0, 'Utils': 0.0}
+    5    0.0361    0.1113   3.0884%  n= 1  {'Manuf': 1.0, 'Enrgy': 0.0, 'Durbl': 0.0}
+    6   -0.0253   -0.0802   3.2615%  n= 1  {'Manuf': 1.0, 'Shops': 0.0, 'HiTec': 0.0}
+    7    0.0236    0.0772   3.6300%  n= 1  {'Manuf': 1.0, 'Telcm': 0.0, 'Utils': 0.0}
+    8    0.0357    0.1170   1.8297%  n= 1  {'Manuf': 1.0, 'Telcm': 0.0, 'Durbl': 0.0}
+    9    0.0237    0.0782   1.9791%  n= 1  {'Manuf': 1.0, 'Telcm': 0.0, 'Durbl': 0.0}
+   10   -0.0251   -0.0841   3.5993%  n= 1  {'Manuf': 1.0, 'Durbl': 0.0, 'Telcm': 0.0}
+   11    0.0487    0.1684   2.7200%  n= 1  {'Manuf': 1.0, 'Telcm': 0.0, 'Durbl': 0.0}
+   12   -0.0807   -0.2853   8.4140%  n= 1  {'Manuf': 1.0, 'Enrgy': 0.0, 'Durbl': 0.0}
+Backtesting: 100%|██████████| 12/12 [00:00<00:00, 950.42it/s]
+
+  ✓ Backtest Inaccurate 없음
+
+  ✓ Infeasible 없음 (0%)
+[17:15:28 +0:35:59] [MVO h252 d20 λ=1.0]    LB=504  fallback 0/12 (0.0%)  [166s]
+[17:15:28 +0:35:59] [MVO h252 d20 λ=1.0] 체크포인트 저장 (fold 7) — 누적 2158s
+[17:15:28 +0:35:59] [MVO h252 d20 λ=1.0] ── fold 8 (test=2025) ──
+[17:15:28 +0:35:59] [MVO h252 d20 λ=1.0]    LB=252  리밸런싱 윈도우 0개 — 건너뜀
+[17:15:28 +0:35:59] [MVO h252 d20 λ=1.0]    LB=504  리밸런싱 윈도우 0개 — 건너뜀
+[17:15:28 +0:35:59] [MVO h252 d20 λ=1.0] 체크포인트 저장 (fold 8) — 누적 2158s
+[17:15:28 +0:35:59] [MVO h252 d20 λ=1.0] 
+[17:15:28 +0:35:59] [MVO h252 d20 λ=1.0] 완료 — 총 2158초
+[17:15:28 +0:35:59] [MVO h252 d20 λ=1.0] 윈도우 174  fallback 0 (0.0%)

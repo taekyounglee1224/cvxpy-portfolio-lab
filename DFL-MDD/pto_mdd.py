@@ -1,4 +1,5 @@
 import numpy as np
+from collections import Counter
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -69,7 +70,36 @@ def train_pto_mdd(pred_model, train_samples, val_samples=None,
     return pred_model
 
 
+
+_SOLVER_MAP = {
+    "CLARABEL": cp.CLARABEL,
+    "ECOS":     cp.ECOS,
+    "SCS":      cp.SCS,
+    "OSQP":     cp.OSQP,
+}
+
+
+def _report_infeasible(infeas_log, n_windows):
+    """solver 실패 건수와 사유(prob.status)를 출력."""
+    n = len(infeas_log)
+    if n == 0:
+        print("\n  \u2713 Fallback \uc5c6\uc74c (0%)")
+        return
+    rate = n / n_windows if n_windows else float("nan")
+    print(f"\n  \u26a0 Fallback \ubc1c\uc0dd: {n}/{n_windows} ({rate:.2%})")
+    for status, cnt in Counter(infeas_log).most_common():
+        print(f"      {status}: {cnt}")
+
+
+def _cp_solver(name):
+    """문자열 solver 이름 → CVXPY solver 상수."""
+    if not isinstance(name, str):
+        return name
+    return _SOLVER_MAP.get(name.upper(), cp.CLARABEL)
+
+
 def _solve_mdd_lp(Y_hat, N, m, n1, C, x_min, x_max, gamma=0.0,
+                  solve_method="CLARABEL", infeas_counter=None,
                   Sigma=None, delta=0.0):
     x = cp.Variable(m)
     u = cp.Variable(N + 1)
@@ -86,8 +116,10 @@ def _solve_mdd_lp(Y_hat, N, m, n1, C, x_min, x_max, gamma=0.0,
         constraints.append(u[k] >= u[k - 1])
     constraints += [x >= x_min, x <= x_max, cp.sum(x) == 1]
     prob = cp.Problem(objective, constraints)
-    prob.solve(solver=cp.ECOS, verbose=False)
+    prob.solve(solver=_cp_solver(solve_method), verbose=False)
     if x.value is None:
+        if infeas_counter is not None:
+            infeas_counter.append(prob.status or "solve_failed")
         # Fallback: x_max 클램핑 후 재정규화
         w = np.clip(np.ones(m) / m, x_min, x_max)
         return w / w.sum()
@@ -97,7 +129,7 @@ def _solve_mdd_lp(Y_hat, N, m, n1, C, x_min, x_max, gamma=0.0,
 def backtest_pto_mdd(pred_model, rebal_samples, N, d, C,
                      n1=0.50, x_min=0.0, x_max=1.0, gamma=0.0,
                      delta=0.0, is_mean=None, is_std=None,
-                     stock_names=None, rebal=None):
+                     stock_names=None, rebal=None, solve_method="CLARABEL"):
     m        = rebal_samples[0][1].shape[1]
     lookback = rebal_samples[0][0].shape[0] // m
     names    = stock_names if stock_names else [f"S{j+1}" for j in range(m)]
@@ -107,6 +139,8 @@ def backtest_pto_mdd(pred_model, rebal_samples, N, d, C,
     print("\n── Backtest : PTO-MDD ──")
     print(f"{'Win':>4}  {'R_real':>8}  {'MDD(%)':>8}  {'Top-3 weights'}")
     print("-" * 65)
+
+    infeas_log = []   # solver 실패 시 prob.status 기록
 
     pred_model.eval()
     for i, (z_np, r_np) in enumerate(rebal_samples):
@@ -122,6 +156,8 @@ def backtest_pto_mdd(pred_model, rebal_samples, N, d, C,
 
         Y_hat  = np.cumsum(r_hat, axis=0)
         w      = _solve_mdd_lp(Y_hat, N, m, n1, C, x_min, x_max, gamma,
+                               solve_method=solve_method,
+                               infeas_counter=infeas_log,
                                Sigma=Sigma, delta=delta)
         y_real = np.cumsum(r_np, axis=0)
         w_real = y_real @ w                             # (N,)
@@ -151,4 +187,5 @@ def backtest_pto_mdd(pred_model, rebal_samples, N, d, C,
         })
         print(f"  {i+1:3d}  {R_real:8.4f}  {M_real:8.4%}  n={n_active:2d}  {top3}")
 
+    _report_infeasible(infeas_log, len(results))
     return results

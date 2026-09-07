@@ -81,7 +81,8 @@ def build_mvo_layer(N, m, gamma=0.0, delta=0.0):
 # Solve  (n1 없음)
 # =============================================================================
 def solve_portfolio_mvo(y_hat, opt_layer, x_min, x_max,
-                        Sigma_list=None, infeas_counter=None):
+                        Sigma_list=None, infeas_counter=None,
+                        solve_method="CLARABEL"):
     batch, N, m = y_hat.shape
     x_min_val = torch.tensor(x_min, dtype=torch.float64)
     x_max_val = torch.tensor(x_max, dtype=torch.float64)
@@ -93,16 +94,22 @@ def solve_portfolio_mvo(y_hat, opt_layer, x_min, x_max,
                 L_b = torch.linalg.cholesky(Sigma_list[b].double())
                 (x_star_b,) = opt_layer(
                     y_hat[b].double(), x_min_val, x_max_val, L_b,
-                    solver_args={"solve_method": "ECOS"},
+                    solver_args={"solve_method": solve_method},
                 )
             else:
                 (x_star_b,) = opt_layer(
                     y_hat[b].double(), x_min_val, x_max_val,
-                    solver_args={"solve_method": "ECOS"},
+                    solver_args={"solve_method": solve_method},
                 )
+            # 예외 없이 무효해(sum(x) != 1)를 반환하는 경우 탐지
+            _s = float(x_star_b.detach().sum())
+            fail_reason = None if abs(_s - 1.0) <= 1e-4 else f"invalid_sum={_s:.2e}"
         except Exception as e:
+            fail_reason = str(e)[:120] or "solve_failed"
+
+        if fail_reason is not None:
             if infeas_counter is not None:
-                infeas_counter.append(str(e)[:120] or "solve_failed")
+                infeas_counter.append(fail_reason)
             x_raw     = torch.softmax(y_hat[b, -1, :], dim=0)
             x_clamped = torch.clamp(x_raw, min=x_min, max=x_max)
             x_star_b  = (x_clamped / x_clamped.sum()).double()
@@ -115,7 +122,8 @@ def solve_portfolio_mvo(y_hat, opt_layer, x_min, x_max,
 # Forward pass  (DFL-MDD와 동일, solve만 MVO)
 # =============================================================================
 def forward_pass_mvo(z, r_real, pred_model, opt_layer, C, d, x_min, x_max, lam,
-                     is_mean=None, is_std=None, delta=0.0):
+                     is_mean=None, is_std=None, delta=0.0,
+                     solve_method="CLARABEL"):
     r_hat = pred_model(z)
     y_hat = compute_cumulative_path(r_hat)
 
@@ -134,7 +142,8 @@ def forward_pass_mvo(z, r_real, pred_model, opt_layer, C, d, x_min, x_max, lam,
             Sigma_list.append(torch.tensor(S, dtype=torch.float64))
 
     x_star = solve_portfolio_mvo(y_hat, opt_layer, x_min, x_max,
-                                 Sigma_list if delta > 0 else None)
+                                 Sigma_list if delta > 0 else None,
+                                 solve_method=solve_method)
     y_real = compute_cumulative_path(r_real)
     w_real = compute_realized_path(x_star, y_real)
     R_real = compute_return(w_real, d, C)
@@ -154,7 +163,7 @@ def train_dfl_mvo(pred_model, opt_layer, train_samples, val_samples=None,
                   C=1.0, d=1.0, x_min=0.0, x_max=1.0, lam=0.3,
                   is_mean=None, is_std=None, delta=0.0,
                   patience=10, lr_patience=10, lr_factor=0.5,
-                  train_dates=None):
+                  train_dates=None, solve_method="CLARABEL"):
     optimizer = optim.Adam(pred_model.parameters(), lr=lr, weight_decay=1e-4)
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(
         optimizer, mode="min", factor=lr_factor, patience=lr_patience
@@ -188,6 +197,7 @@ def train_dfl_mvo(pred_model, opt_layer, train_samples, val_samples=None,
                     z_b, r_b, pred_model, opt_layer,
                     C, d, x_min, x_max, lam,
                     is_mean=is_mean, is_std=is_std, delta=delta,
+                    solve_method=solve_method,
                 )
                 n_inaccurate = sum(
                     1 for warning in w if "Inaccurate" in str(warning.message)
@@ -220,6 +230,7 @@ def train_dfl_mvo(pred_model, opt_layer, train_samples, val_samples=None,
                         z_v, r_v, pred_model, opt_layer,
                         C, d, x_min, x_max, lam,
                         is_mean=is_mean, is_std=is_std, delta=delta,
+                        solve_method=solve_method,
                     )
                 val_losses.append(res["loss"].item())
 
@@ -265,7 +276,7 @@ def train_dfl_mvo(pred_model, opt_layer, train_samples, val_samples=None,
 def backtest_dfl_mvo(pred_model, opt_layer, rebal_samples, N, d, C,
                      x_min=0.0, x_max=1.0,
                      delta=0.0, is_mean=None, is_std=None,
-                     stock_names=None, rebal=None):
+                     stock_names=None, rebal=None, solve_method="CLARABEL"):
     m        = rebal_samples[0][1].shape[1]
     lookback = rebal_samples[0][0].shape[0] // m
     names    = stock_names if stock_names else [f"S{j+1}" for j in range(m)]
@@ -297,7 +308,8 @@ def backtest_dfl_mvo(pred_model, opt_layer, rebal_samples, N, d, C,
             warnings.simplefilter("always")
             x_star = solve_portfolio_mvo(y_hat.detach(), opt_layer, x_min, x_max,
                                          Sigma_list if delta > 0 else None,
-                                         infeas_counter=infeas_log)
+                                         infeas_counter=infeas_log,
+                                         solve_method=solve_method)
             n_inaccurate = sum(
                 1 for warning in w if "Inaccurate" in str(warning.message)
             )
