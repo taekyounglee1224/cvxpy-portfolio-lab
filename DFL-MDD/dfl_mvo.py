@@ -158,6 +158,18 @@ def forward_pass_mvo(z, r_real, pred_model, opt_layer, C, d, x_min, x_max, lam,
 # =============================================================================
 # Train  (train_dfl_mdd과 동일 구조, forward만 MVO / n1 없음)
 # =============================================================================
+def _stack_f32(samples, field):
+    """샘플 집합을 (n, ...) float32 텐서로. dfl_mdd._stack_f32와 동일 로직.
+
+    run_dfl_mvo.WindowSet처럼 연속 float32 배열(.Z/.R)이면 torch.from_numpy로
+    복사 없이 감싼다. 그 외(리스트 등)는 기존과 동일하게 스택 후 캐스팅한다.
+    """
+    arr = getattr(samples, ("Z", "R")[field], None)
+    if arr is not None and arr.dtype == np.float32:
+        return torch.from_numpy(arr)
+    return torch.tensor(np.array([s[field] for s in samples]), dtype=torch.float32)
+
+
 def train_dfl_mvo(pred_model, opt_layer, train_samples, val_samples=None,
                   epochs=50, batch_size=16, lr=1e-4,
                   C=1.0, d=1.0, x_min=0.0, x_max=1.0, lam=0.3,
@@ -169,11 +181,11 @@ def train_dfl_mvo(pred_model, opt_layer, train_samples, val_samples=None,
         optimizer, mode="min", factor=lr_factor, patience=lr_patience
     )
 
-    zs_tr = torch.tensor(np.array([s[0] for s in train_samples]), dtype=torch.float32)
-    rs_tr = torch.tensor(np.array([s[1] for s in train_samples]), dtype=torch.float32)
+    zs_tr = _stack_f32(train_samples, 0)
+    rs_tr = _stack_f32(train_samples, 1)
     if val_samples is not None:
-        zs_val = torch.tensor(np.array([s[0] for s in val_samples]), dtype=torch.float32)
-        rs_val = torch.tensor(np.array([s[1] for s in val_samples]), dtype=torch.float32)
+        zs_val = _stack_f32(val_samples, 0)
+        rs_val = _stack_f32(val_samples, 1)
 
     best_val_loss  = float("inf")
     best_state     = None

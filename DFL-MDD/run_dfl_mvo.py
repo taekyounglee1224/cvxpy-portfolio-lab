@@ -54,6 +54,9 @@ ap.add_argument("--lam",     type=float, required=True)
 ap.add_argument("--delta",   type=float, default=20.0)
 ap.add_argument("--horizon", type=int,   default=126)
 ap.add_argument("--solver",  default="CLARABEL")
+ap.add_argument("--xmax", type=float, default=1.0,
+                help="자산별 비중 상한 (0<xmax<=1). 1.0이 아니면 체크포인트 "
+                     "이름에 _xm 태그가 붙어 기존 결과와 분리된다")
 ap.add_argument("--lb", type=int, nargs="+", default=None,
                 help="LOOKBACK 목록. 지정 시 체크포인트 이름에 _LB 태그가 붙는다")
 args = ap.parse_args()
@@ -86,7 +89,7 @@ stock_names = inds.columns.tolist()
 full_np     = inds.values
 full_dates  = inds.index
 
-gamma, x_min, x_max = 0.0, 0.0, 1.0
+gamma, x_min, x_max = 0.0, 0.0, args.xmax
 N_STOCKS   = len(inds.columns)
 HORIZON    = args.horizon
 REBAL      = 21
@@ -102,6 +105,7 @@ PATIENCE   = 20
 VAL_YEARS, TEST_YEARS, N_FOLDS = 5, 1, 8
 LOOKBACK_LIST = args.lb if args.lb else [252, 504]   # ★ DFL-MVO는 n1 없음
 _LBTAG        = f"_LB{'-'.join(map(str, LOOKBACK_LIST))}" if args.lb else ""
+_XMTAG        = "" if args.xmax >= 1.0 else f"_xm{args.xmax:g}"
 
 
 def date_to_idx(s):
@@ -128,13 +132,51 @@ is_mean = full_np[:init_train_end].mean(axis=0)
 is_std  = full_np[:init_train_end].std(axis=0)
 
 
-def make_windows(data, lookback, horizon, start, end):
-    samples = []
-    for t in range(max(start, lookback), end - horizon + 1):
+class WindowSet:
+    """(z, r) 샘플 집합. run_dfl_mdd.WindowSet과 동일.
+
+    리스트 대신 연속 배열 Z/R 하나로 보관한다. 기존 구현은 float64 리스트 →
+    np.array float64 복사 → float32 텐서로 같은 데이터를 3중으로 들고 있어
+    원소당 12바이트를 상시 점유했다. float32로 한 번만 담아 torch.from_numpy로
+    무복사 변환하면 4바이트다.
+
+    리스트처럼 len/인덱싱/슬라이싱/순회가 되므로 호출부는 그대로 쓴다.
+    """
+    __slots__ = ("Z", "R")
+
+    def __init__(self, Z, R):
+        self.Z, self.R = Z, R
+
+    def __len__(self):
+        return len(self.Z)
+
+    def __getitem__(self, i):
+        if isinstance(i, slice):
+            return WindowSet(self.Z[i], self.R[i])
+        return (self.Z[i], self.R[i])
+
+    def __iter__(self):
+        for i in range(len(self.Z)):
+            yield (self.Z[i], self.R[i])
+
+
+def make_windows(data, lookback, horizon, start, end, dtype=np.float32):
+    """
+    dtype=float32 : 학습/검증용. 어차피 float32 텐서가 되므로 값은 동일하고
+                    메모리만 1/3이 된다.
+    dtype=float64 : 백테스트용. backtest_dfl_mvo가 z를 float64로 역정규화해
+                    Sigma를 추정하므로 기존 수치를 그대로 재현하려면 필요하다.
+    """
+    ts = range(max(start, lookback), end - horizon + 1)
+    m  = data.shape[1]
+    Z  = np.empty((len(ts), lookback * m), dtype=dtype)
+    R  = np.empty((len(ts), horizon, m),   dtype=dtype)
+    for i, t in enumerate(ts):
         z_raw  = data[t - lookback:t]
-        z_norm = (z_raw - is_mean) / (is_std + 1e-8)
-        samples.append((z_norm.flatten(), data[t:t + horizon]))
-    return samples
+        z_norm = (z_raw - is_mean) / (is_std + 1e-8)   # 정규화는 float64로 계산
+        Z[i]   = z_norm.ravel()                        # 마지막에만 캐스팅
+        R[i]   = data[t:t + horizon]
+    return WindowSet(Z, R)
 
 
 # ══════════════════════════════════════════════════════════
@@ -147,7 +189,8 @@ CKPT_DIR = "./checkpoint"
 os.makedirs(CKPT_DIR, exist_ok=True)
 ckpt_path = os.path.join(
     CKPT_DIR,
-    f"dfl_mvo_{N_STOCKS}_inds_h{HORIZON}{_LBTAG}_d{DELTA_VAL}_l{LAM_VAL}_{SOLVER}.pkl")
+    f"dfl_mvo_{N_STOCKS}_inds_h{HORIZON}{_XMTAG}{_LBTAG}"
+    f"_d{DELTA_VAL}_l{LAM_VAL}_{SOLVER}.pkl")
 
 log(f"데이터 {args.data} industries ({N_STOCKS}개 자산, {len(full_np)}일)")
 log(f"HORIZON={HORIZON}, solver={SOLVER}, delta={DELTA_VAL}, "
@@ -188,7 +231,8 @@ for fold_info in folds:
                                      end=fold_info["val_end_idx"])[::HORIZON]
         rebal_samples = make_windows(full_np, LOOKBACK, HORIZON,
                                      start=fold_info["test_start_idx"],
-                                     end=fold_info["test_end_idx"])[::REBAL]
+                                     end=fold_info["test_end_idx"],
+                                     dtype=np.float64)[::REBAL]
 
         # HORIZON이 크면 뒤쪽 fold에 리밸런싱 윈도우가 없을 수 있음
         if len(rebal_samples) == 0:

@@ -43,6 +43,7 @@ __all__ = [
     "attach_date_idx",
     "w_equal", "w_gmv", "w_mvo",
     "backtest_benchmark",
+    "build_bench_store",
     "compute_turnover",
     "infeasibility_rate",
 ]
@@ -90,31 +91,37 @@ def w_equal(R_lb, **kwargs):
     return np.ones(m) / m, True   # (weights, feasible)
 
 
-def _solve_long_only(objective, x, m):
-    """long-only + full-investment QP 공통 solver. (w, feasible) 반환."""
+def _solve_long_only(objective, x, m, x_max=1.0):
+    """long-only + full-investment QP 공통 solver. (w, feasible) 반환.
+
+    x_max < 1 이면 자산별 비중 상한을 추가한다 (기본 1.0 = 상한 없음).
+    상한이 있으면 실패 시 fallback 도 EW 대신 상한을 만족하는 균등배분을 쓴다.
+    """
     constraints = [cp.sum(x) == 1, x >= 0]
+    if x_max < 1.0:
+        constraints.append(x <= x_max)
     prob = cp.Problem(objective, constraints)
     try:
         prob.solve(solver=cp.CLARABEL)
         if x.value is None or prob.status not in ("optimal", "optimal_inaccurate"):
             raise ValueError(prob.status)
-        w = np.clip(np.array(x.value).flatten(), 0, None)
+        w = np.clip(np.array(x.value).flatten(), 0, x_max if x_max < 1.0 else None)
         s = w.sum()
         return (w / s if s > 0 else np.ones(m) / m), True
     except Exception:
-        return np.ones(m) / m, False   # fallback = EW, infeasible 플래그
+        return np.ones(m) / m, False   # fallback = EW (1/m <= x_max 이면 상한 만족)
 
 
-def w_gmv(R_lb, ridge=1e-4, **kwargs):
+def w_gmv(R_lb, ridge=1e-4, x_max=1.0, **kwargs):
     """Global Minimum Variance (long-only): min x'Σx."""
     m = R_lb.shape[1]
     Sigma = np.cov(R_lb.T) + ridge * np.eye(m)
     x = cp.Variable(m)
     obj = cp.Minimize(cp.quad_form(x, cp.psd_wrap(Sigma)))
-    return _solve_long_only(obj, x, m)
+    return _solve_long_only(obj, x, m, x_max)
 
 
-def w_mvo(R_lb, delta=20.0, ridge=1e-4, **kwargs):
+def w_mvo(R_lb, delta=20.0, ridge=1e-4, x_max=1.0, **kwargs):
     """
     Historical Mean-Variance (long-only): max mu'x - (delta/2) x'Σx.
 
@@ -130,7 +137,7 @@ def w_mvo(R_lb, delta=20.0, ridge=1e-4, **kwargs):
     Sigma = np.cov(R_lb.T) + ridge * np.eye(m)
     x = cp.Variable(m)
     obj = cp.Maximize(mu @ x - (delta / 2.0) * cp.quad_form(x, cp.psd_wrap(Sigma)))
-    return _solve_long_only(obj, x, m)
+    return _solve_long_only(obj, x, m, x_max)
 
 
 # ──────────────────────────────────────────────
@@ -200,6 +207,41 @@ def backtest_benchmark(full_np, folds, weight_fn, LOOKBACK, HORIZON, REBAL,
 # ──────────────────────────────────────────────
 # drift 반영 turnover (Reviewer #21)
 # ──────────────────────────────────────────────
+
+def build_bench_store(full_np, folds, stock_names, LOOKBACK_LIST,
+                      HORIZON, REBAL, delta=20.0, x_max=1.0, verbose=True):
+    """EW / GMV / hist-MVO 벤치마크를 한 번에 백테스트해 dict 로 반환.
+
+    x_max 를 한 곳에서만 지정하면 GMV·hist-MVO 양쪽에 동일하게 적용된다
+    (EW 는 1/m 이라 상한과 무관). 개별 호출 시 x_max 를 빠뜨리는 실수를 막는다.
+
+    Returns
+    -------
+    store : {label: results}
+    infeas: {label: n_infeasible}
+    """
+    kw = {} if x_max >= 1.0 else {"x_max": x_max}
+    store, infeas = {}, {}
+    r, n = backtest_benchmark(full_np, folds, w_equal, LOOKBACK_LIST[0],
+                              HORIZON, REBAL, stock_names)
+    store["EW"], infeas["EW"] = r, n
+    for lb in LOOKBACK_LIST:
+        r_g, n_g = backtest_benchmark(full_np, folds, w_gmv, lb, HORIZON, REBAL,
+                                      stock_names, weight_kwargs=dict(kw))
+        r_m, n_m = backtest_benchmark(full_np, folds, w_mvo, lb, HORIZON, REBAL,
+                                      stock_names,
+                                      weight_kwargs={"delta": delta, **kw})
+        store[f"GMV (LB={lb})"], infeas[f"GMV (LB={lb})"] = r_g, n_g
+        store[f"hist-MVO (LB={lb})"], infeas[f"hist-MVO (LB={lb})"] = r_m, n_m
+
+    if verbose:
+        mx = {k: max(float(np.max(x["weights"])) for x in v) for k, v in store.items()}
+        print(f"  벤치마크 {len(store)}종  x_max={x_max}  윈도우 {len(store['EW'])}개")
+        for k, v in mx.items():
+            flag = "  ← 상한 위반!" if v > x_max + 1e-6 else ""
+            print(f"    {k:<20} 최대비중 {v:.4f}{flag}")
+    return store, infeas
+
 
 def compute_turnover(results, full_np, REBAL, one_way=True):
     """

@@ -1,0 +1,199 @@
+x_max sweep 시작 — 10 inds, h126, x_max [0.2, 0.3, 0.6], DFL-MDD 동시 13개
+
+======================================================================
+  x_max=0.2
+======================================================================
+
+[+0:00:00] ▶ [x_max=0.2] DFL-MDD 학습
+          -u launch_dfl_mdd.py --data 10 --horizon 126 --solver CLARABEL --jobs 13 --xmax 0.2 --python c:\Users\leetk\Desktop\KU_Fintech_Lab\ml_env\Scripts\python.exe
+data=10 inds  h=126  d=20  solver=CLARABEL
+코어 24  동시 실행 13
+shard 32개 중 실행 32개 (이미 완료 0개 건너뜀)
+
+[+    0s] 시작 l0.3_LB504_n10.1 (PID 27960) → ./logs\mdd_10_h126_xm0.2_LB504_n10.1_l0.3.txt
+[+    0s] 시작 l0.3_LB504_n10.2 (PID 32316) → ./logs\mdd_10_h126_xm0.2_LB504_n10.2_l0.3.txt
+[+    0s] 시작 l0.3_LB504_n10.3 (PID 31104) → ./logs\mdd_10_h126_xm0.2_LB504_n10.3_l0.3.txt
+[+    0s] 시작 l0.3_LB504_n10.4 (PID 31492) → ./logs\mdd_10_h126_xm0.2_LB504_n10.4_l0.3.txt
+[+    0s] 시작 l0.5_LB504_n10.1 (PID 34380) → ./logs\mdd_10_h126_xm0.2_LB504_n10.1_l0.5.txt
+[+    0s] 시작 l0.5_LB504_n10.2 (PID 27096) → ./logs\mdd_10_h126_xm0.2_LB504_n10.2_l0.5.txt
+[+    0s] 시작 l0.5_LB504_n10.3 (PID 8256) → ./logs\mdd_10_h126_xm0.2_LB504_n10.3_l0.5.txt
+[+    0s] 시작 l0.5_LB504_n10.4 (PID 23984) → ./logs\mdd_10_h126_xm0.2_LB504_n10.4_l0.5.txt
+[+    0s] 시작 l0.7_LB504_n10.1 (PID 28008) → ./logs\mdd_10_h126_xm0.2_LB504_n10.1_l0.7.txt
+[+    0s] 시작 l0.7_LB504_n10.2 (PID 34552) → ./logs\mdd_10_h126_xm0.2_LB504_n10.2_l0.7.txt
+[+    0s] 시작 l0.7_LB504_n10.3 (PID 6592) → ./logs\mdd_10_h126_xm0.2_LB504_n10.3_l0.7.txt
+[+    0s] 시작 l0.7_LB504_n10.4 (PID 25740) → ./logs\mdd_10_h126_xm0.2_LB504_n10.4_l0.7.txt
+[+    0s] 시작 l1.0_LB504_n10.1 (PID 23044) → ./logs\mdd_10_h126_xm0.2_LB504_n10.1_l1.0.txt
+[+ 5279s] 완료 l0.5_LB504_n10.4 [5279s]  남은 19 / 실행중 7
+[+ 5279s] 시작 l1.0_LB504_n10.2 (PID 24516) → ./logs\mdd_10_h126_xm0.2_LB504_n10.2_l1.0.txt
+[+ 5993s] 완료 l0.5_LB504_n10.2 [5993s]  남은 18 / 실행중 5
+[+ 5993s] 시작 l1.0_LB504_n10.3 (PID 3188) → ./logs\mdd_10_h126_xm0.2_LB504_n10.3_l1.0.txt
+[+ 6087s] 완료 l0.3_LB504_n10.4 [6087s]  남은 17 / 실행중 3
+[+ 6087s] 시작 l1.0_LB504_n10.4 (PID 29176) → ./logs\mdd_10_h126_xm0.2_LB504_n10.4_l1.0.txt
+[+ 6441s] 완료 l0.3_LB504_n10.2 [6441s]  남은 16 / 실행중 1
+[+ 6441s] 시작 l0.3_LB252_n10.1 (PID 25252) → ./logs\mdd_10_h126_xm0.2_LB252_n10.1_l0.3.txt
+[+ 6621s] 완료 l0.7_LB504_n10.2 [6621s]  남은 15 / 실행중 5
+[+ 6621s] 시작 l0.3_LB252_n10.2 (PID 27424) → ./logs\mdd_10_h126_xm0.2_LB252_n10.2_l0.3.txt
+[+ 6925s] 완료 l0.7_LB504_n10.4 [6925s]  남은 14 / 실행중 6
+[+ 6925s] 시작 l0.3_LB252_n10.3 (PID 16016) → ./logs\mdd_10_h126_xm0.2_LB252_n10.3_l0.3.txt
+[+ 6961s] 완료 l0.7_LB504_n10.3 [6961s]  남은 13 / 실행중 5
+[+ 6961s] 시작 l0.3_LB252_n10.4 (PID 34040) → ./logs\mdd_10_h126_xm0.2_LB252_n10.4_l0.3.txt
+[+ 7001s] 완료 l0.3_LB504_n10.1 [7001s]  남은 12 / 실행중 0
+[+ 7001s] 시작 l0.5_LB252_n10.1 (PID 31364) → ./logs\mdd_10_h126_xm0.2_LB252_n10.1_l0.5.txt
+[+ 7167s] 완료 l0.7_LB504_n10.1 [7167s]  남은 11 / 실행중 3
+[+ 7167s] 시작 l0.5_LB252_n10.2 (PID 34232) → ./logs\mdd_10_h126_xm0.2_LB252_n10.2_l0.5.txt
+[+ 7235s] 완료 l0.5_LB504_n10.3 [7235s]  남은 10 / 실행중 2
+[+ 7235s] 시작 l0.5_LB252_n10.3 (PID 26496) → ./logs\mdd_10_h126_xm0.2_LB252_n10.3_l0.5.txt
+[+ 7411s] 완료 l1.0_LB504_n10.1 [7411s]  남은 9 / 실행중 2
+[+ 7411s] 시작 l0.5_LB252_n10.4 (PID 29056) → ./logs\mdd_10_h126_xm0.2_LB252_n10.4_l0.5.txt
+[+ 8632s] 완료 l0.5_LB504_n10.1 [8632s]  남은 8 / 실행중 1
+[+ 8632s] 시작 l0.7_LB252_n10.1 (PID 22852) → ./logs\mdd_10_h126_xm0.2_LB252_n10.1_l0.7.txt
+[+ 8912s] 완료 l0.3_LB504_n10.3 [8912s]  남은 7 / 실행중 0
+[+ 8912s] 시작 l0.7_LB252_n10.2 (PID 25324) → ./logs\mdd_10_h126_xm0.2_LB252_n10.2_l0.7.txt
+[+11274s] 완료 l1.0_LB504_n10.2 [5995s]  남은 6 / 실행중 0
+[+11274s] 시작 l0.7_LB252_n10.3 (PID 28416) → ./logs\mdd_10_h126_xm0.2_LB252_n10.3_l0.7.txt
+[+12212s] 완료 l0.3_LB252_n10.4 [5251s]  남은 5 / 실행중 5
+[+12212s] 시작 l0.7_LB252_n10.4 (PID 29836) → ./logs\mdd_10_h126_xm0.2_LB252_n10.4_l0.7.txt
+[+12380s] 완료 l1.0_LB504_n10.4 [6293s]  남은 4 / 실행중 1
+[+12380s] 시작 l1.0_LB252_n10.1 (PID 6256) → ./logs\mdd_10_h126_xm0.2_LB252_n10.1_l1.0.txt
+[+12452s] 완료 l1.0_LB504_n10.3 [6459s]  남은 3 / 실행중 0
+[+12452s] 시작 l1.0_LB252_n10.2 (PID 33696) → ./logs\mdd_10_h126_xm0.2_LB252_n10.2_l1.0.txt
+[+12585s] 완료 l0.5_LB252_n10.2 [5417s]  남은 2 / 실행중 4
+[+12585s] 시작 l1.0_LB252_n10.3 (PID 10720) → ./logs\mdd_10_h126_xm0.2_LB252_n10.3_l1.0.txt
+[+12813s] 완료 l0.3_LB252_n10.2 [6191s]  남은 1 / 실행중 1
+[+12813s] 시작 l1.0_LB252_n10.4 (PID 33156) → ./logs\mdd_10_h126_xm0.2_LB252_n10.4_l1.0.txt
+[+13193s] 완료 l0.3_LB252_n10.1 [6751s]  남은 0 / 실행중 0
+[+13805s] 완료 l0.5_LB252_n10.4 [6393s]  남은 0 / 실행중 3
+[+14551s] 완료 l0.5_LB252_n10.1 [7549s]  남은 0 / 실행중 1
+[+14681s] 완료 l0.3_LB252_n10.3 [7755s]  남은 0 / 실행중 0
+[+15041s] 완료 l0.5_LB252_n10.3 [7805s]  남은 0 / 실행중 0
+[+15455s] 완료 l0.7_LB252_n10.1 [6823s]  남은 0 / 실행중 0
+[+16200s] 완료 l0.7_LB252_n10.2 [7287s]  남은 0 / 실행중 0
+[+17384s] 완료 l0.7_LB252_n10.3 [6109s]  남은 0 / 실행중 0
+[+18238s] 완료 l1.0_LB252_n10.4 [5425s]  남은 0 / 실행중 4
+[+18534s] 완료 l1.0_LB252_n10.3 [5949s]  남은 0 / 실행중 3
+[+18572s] 완료 l0.7_LB252_n10.4 [6359s]  남은 0 / 실행중 0
+[+18894s] 완료 l1.0_LB252_n10.2 [6441s]  남은 0 / 실행중 1
+[+19833s] 완료 l1.0_LB252_n10.1 [7452s]  남은 0 / 실행중 0
+
+전체 완료 — 19833초
+다음: python merge_ckpt.py --data 10 --horizon 126 --delta 20 --solver CLARABEL
+[+5:30:33] ◀ [x_max=0.2] DFL-MDD 학습 — 완료
+
+[+5:30:33] ▶ [x_max=0.2] DFL-MDD 병합
+          merge_ckpt.py --data 10 --horizon 126 --delta 20 --solver CLARABEL --xmax 0.2
+  ✓ lam=0.3: shard 8개 → config 8개, fold 8 완료
+      [(252, 0.1), (252, 0.2), (252, 0.3), (252, 0.4), (504, 0.1), (504, 0.2), (504, 0.3), (504, 0.4)]
+      → dfl_mdd_10_inds_h126_xm0.2_d20_l0.3_CLARABEL.pkl
+  ✓ lam=0.5: shard 8개 → config 8개, fold 8 완료
+      [(252, 0.1), (252, 0.2), (252, 0.3), (252, 0.4), (504, 0.1), (504, 0.2), (504, 0.3), (504, 0.4)]
+      → dfl_mdd_10_inds_h126_xm0.2_d20_l0.5_CLARABEL.pkl
+  ✓ lam=0.7: shard 8개 → config 8개, fold 8 완료
+      [(252, 0.1), (252, 0.2), (252, 0.3), (252, 0.4), (504, 0.1), (504, 0.2), (504, 0.3), (504, 0.4)]
+      → dfl_mdd_10_inds_h126_xm0.2_d20_l0.7_CLARABEL.pkl
+  ✓ lam=1.0: shard 8개 → config 8개, fold 8 완료
+      [(252, 0.1), (252, 0.2), (252, 0.3), (252, 0.4), (504, 0.1), (504, 0.2), (504, 0.3), (504, 0.4)]
+      → dfl_mdd_10_inds_h126_xm0.2_d20_l1.0_CLARABEL.pkl
+
+병합 4개, 건너뜀 0개
+[+5:30:33] ◀ [x_max=0.2] DFL-MDD 병합 — 완료
+
+[+5:30:33] ▶ [x_max=0.2] DFL-MVO 학습
+          -u launch_dfl_mvo.py --data 10 --horizon 126 --delta 20 --solver CLARABEL --jobs 4 --xmax 0.2 --python c:\Users\leetk\Desktop\KU_Fintech_Lab\ml_env\Scripts\python.exe
+data=10 inds  h=126  solver=CLARABEL
+코어 24  동시 실행 4
+shard 4개 중 실행 4개 (이미 완료 0개 건너뜀)
+예상 1라운드 × 16유닛
+
+[+    0s] 시작 d20_l0.3 (PID 35040) → ./logs\dflmvo_10_h126_xm0.2_d20_l0.3.txt
+[+    0s] 시작 d20_l0.5 (PID 35284) → ./logs\dflmvo_10_h126_xm0.2_d20_l0.5.txt
+[+    0s] 시작 d20_l0.7 (PID 35780) → ./logs\dflmvo_10_h126_xm0.2_d20_l0.7.txt
+[+    0s] 시작 d20_l1.0 (PID 23984) → ./logs\dflmvo_10_h126_xm0.2_d20_l1.0.txt
+[+ 2336s] 완료 d20_l0.3 [2336s]  남은 0 / 실행중 0
+[+ 2530s] 완료 d20_l0.5 [2530s]  남은 0 / 실행중 0
+[+ 2552s] 완료 d20_l0.7 [2552s]  남은 0 / 실행중 0
+[+ 2632s] 완료 d20_l1.0 [2632s]  남은 0 / 실행중 0
+
+전체 완료 — 2632초
+체크포인트는 노트북이 읽는 이름 그대로입니다 (merge 불필요).
+[+6:14:26] ◀ [x_max=0.2] DFL-MVO 학습 — 완료
+
+[+6:14:26] ★ x_max=0.2 전체 완료
+
+======================================================================
+  x_max=0.3
+======================================================================
+
+[+6:14:26] ▶ [x_max=0.3] DFL-MDD 학습
+          -u launch_dfl_mdd.py --data 10 --horizon 126 --solver CLARABEL --jobs 13 --xmax 0.3 --python c:\Users\leetk\Desktop\KU_Fintech_Lab\ml_env\Scripts\python.exe
+data=10 inds  h=126  d=20  solver=CLARABEL
+코어 24  동시 실행 13
+shard 32개 중 실행 0개 (이미 완료 32개 건너뜀)
+
+
+전체 완료 — 0초
+다음: python merge_ckpt.py --data 10 --horizon 126 --delta 20 --solver CLARABEL
+[+6:14:26] ◀ [x_max=0.3] DFL-MDD 학습 — 완료
+
+[+6:14:26] ▶ [x_max=0.3] DFL-MDD 병합
+          merge_ckpt.py --data 10 --horizon 126 --delta 20 --solver CLARABEL --xmax 0.3
+  ! lam=0.3: dfl_mdd_10_inds_h126_xm0.3_d20_l0.3_CLARABEL.pkl 이미 존재 — --force 로 덮어쓰기
+  ! lam=0.5: dfl_mdd_10_inds_h126_xm0.3_d20_l0.5_CLARABEL.pkl 이미 존재 — --force 로 덮어쓰기
+  ! lam=0.7: dfl_mdd_10_inds_h126_xm0.3_d20_l0.7_CLARABEL.pkl 이미 존재 — --force 로 덮어쓰기
+  ! lam=1.0: dfl_mdd_10_inds_h126_xm0.3_d20_l1.0_CLARABEL.pkl 이미 존재 — --force 로 덮어쓰기
+
+병합 0개, 건너뜀 4개
+[+6:14:26] ◀ [x_max=0.3] DFL-MDD 병합 — 완료
+
+[+6:14:26] ▶ [x_max=0.3] DFL-MVO 학습
+          -u launch_dfl_mvo.py --data 10 --horizon 126 --delta 20 --solver CLARABEL --jobs 4 --xmax 0.3 --python c:\Users\leetk\Desktop\KU_Fintech_Lab\ml_env\Scripts\python.exe
+data=10 inds  h=126  solver=CLARABEL
+코어 24  동시 실행 4
+shard 4개 중 실행 0개 (이미 완료 4개 건너뜀)
+
+전체 완료 — 0초
+체크포인트는 노트북이 읽는 이름 그대로입니다 (merge 불필요).
+[+6:14:26] ◀ [x_max=0.3] DFL-MVO 학습 — 완료
+
+[+6:14:26] ★ x_max=0.3 전체 완료
+
+======================================================================
+  x_max=0.6
+======================================================================
+
+[+6:14:26] ▶ [x_max=0.6] DFL-MDD 학습
+          -u launch_dfl_mdd.py --data 10 --horizon 126 --solver CLARABEL --jobs 13 --xmax 0.6 --python c:\Users\leetk\Desktop\KU_Fintech_Lab\ml_env\Scripts\python.exe
+data=10 inds  h=126  d=20  solver=CLARABEL
+코어 24  동시 실행 13
+shard 32개 중 실행 0개 (이미 완료 32개 건너뜀)
+
+
+전체 완료 — 0초
+다음: python merge_ckpt.py --data 10 --horizon 126 --delta 20 --solver CLARABEL
+[+6:14:27] ◀ [x_max=0.6] DFL-MDD 학습 — 완료
+
+[+6:14:27] ▶ [x_max=0.6] DFL-MDD 병합
+          merge_ckpt.py --data 10 --horizon 126 --delta 20 --solver CLARABEL --xmax 0.6
+  ! lam=0.3: dfl_mdd_10_inds_h126_xm0.6_d20_l0.3_CLARABEL.pkl 이미 존재 — --force 로 덮어쓰기
+  ! lam=0.5: dfl_mdd_10_inds_h126_xm0.6_d20_l0.5_CLARABEL.pkl 이미 존재 — --force 로 덮어쓰기
+  ! lam=0.7: dfl_mdd_10_inds_h126_xm0.6_d20_l0.7_CLARABEL.pkl 이미 존재 — --force 로 덮어쓰기
+  ! lam=1.0: dfl_mdd_10_inds_h126_xm0.6_d20_l1.0_CLARABEL.pkl 이미 존재 — --force 로 덮어쓰기
+
+병합 0개, 건너뜀 4개
+[+6:14:27] ◀ [x_max=0.6] DFL-MDD 병합 — 완료
+
+[+6:14:27] ▶ [x_max=0.6] DFL-MVO 학습
+          -u launch_dfl_mvo.py --data 10 --horizon 126 --delta 20 --solver CLARABEL --jobs 4 --xmax 0.6 --python c:\Users\leetk\Desktop\KU_Fintech_Lab\ml_env\Scripts\python.exe
+data=10 inds  h=126  solver=CLARABEL
+코어 24  동시 실행 4
+shard 4개 중 실행 0개 (이미 완료 4개 건너뜀)
+
+전체 완료 — 0초
+체크포인트는 노트북이 읽는 이름 그대로입니다 (merge 불필요).
+[+6:14:27] ◀ [x_max=0.6] DFL-MVO 학습 — 완료
+
+[+6:14:27] ★ x_max=0.6 전체 완료
+
+======================================================================
+sweep 종료 — 총 6:14:27
+모든 단계 정상 완료
+체크포인트: checkpoint/dfl_mdd_10_inds_h126_xm*_d20_l*.pkl

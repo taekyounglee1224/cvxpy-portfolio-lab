@@ -4,19 +4,34 @@ run_dfl_mdd.py
 DFL-MDD 학습을 lambda 하나만 담당하는 단일 프로세스로 실행한다.
 lambda별로 프로세스를 띄우면 코어를 병렬로 쓸 수 있다 (체크포인트가 분리되어 안전).
 
+DFL-MDD 학습을 (lambda, LOOKBACK, n1) 축으로 shard 하나씩 담당하는 단일 프로세스로
+실행한다. 프로세스 1개가 코어 1개를 쓰므로(BLAS/torch 1스레드 고정) shard를 잘게
+쪼갤수록 코어를 더 채울 수 있다.
+
 사용법
 ------
-  # 4개 lambda 동시 실행 (M3 8코어 기준 권장)
-  python run_dfl_mdd.py --data 30 --lam 0.3 &
-  python run_dfl_mdd.py --data 30 --lam 0.5 &
-  python run_dfl_mdd.py --data 30 --lam 0.7 &
-  python run_dfl_mdd.py --data 30 --lam 1.0 &
-  wait
+  # (A) 통짜 실행 — lambda 하나가 config 8개(LB 2 × n1 4)를 순차 처리
+  python run_dfl_mdd.py --data 30 --lam 0.3
 
-  # 로그를 파일로 남기려면
-  python run_dfl_mdd.py --data 30 --lam 0.3 > log_l0.3.txt 2>&1 &
+  # (B) shard 실행 — (lam, LB, n1) 하나씩. 24코어 데스크탑 권장 방식.
+  python run_dfl_mdd.py --data 30 --lam 0.3 --lb 504 --n1 0.2
+  → checkpoint/dfl_mdd_30_inds_h126_LB504_n10.2_d20_l0.3_CLARABEL.pkl
 
-노트북과 동일한 체크포인트를 쓰므로, 끝난 뒤 노트북에서 그대로 로드하면 된다.
+  # shard를 한꺼번에 띄우고 동시 실행 수를 제한하려면
+  python launch_dfl_mdd.py --data 30 --horizon 126 --jobs 18
+
+  # shard 완료 후, 노트북이 읽는 통짜 체크포인트로 병합
+  python merge_ckpt.py --data 30 --horizon 126
+
+재현성
+------
+  --seed-mode config (기본) 은 (fold, LOOKBACK, n1)에만 의존하는 시드를 쓴다.
+  → 통짜로 돌리든 shard로 쪼개든 결과가 동일하다.
+  구버전(fold 단위 시드, config 순서에 결과가 의존)은 --seed-mode fold.
+  ※ 기존 체크포인트는 fold 시드로 만들어졌으므로 두 모드의 수치는 다르다.
+     한 표 안에서는 반드시 같은 모드로 통일할 것.
+
+병합된 체크포인트는 노트북과 동일한 형식이므로 그대로 로드하면 된다.
 """
 
 # ── BLAS 스레드 고정: 프로세스 간 코어 경합 방지 (import 전에 설정해야 함) ──
@@ -56,6 +71,16 @@ ap.add_argument("--horizon", type=int, default=126,
                 help="예측/MDD 제약 구간 (거래일). 기본 126")
 ap.add_argument("--lb", type=int, nargs="+", default=None,
                 help="LOOKBACK 목록. 지정 시 체크포인트 이름에 _LB 태그가 붙는다")
+ap.add_argument("--n1", type=float, nargs="+", default=None,
+                help="n1 목록. 지정 시 체크포인트 이름에 _n1 태그가 붙는다 "
+                     "(shard 실행 후 merge_ckpt.py로 합칠 것)")
+ap.add_argument("--xmax", type=float, default=1.0,
+                help="자산별 비중 상한 (0<xmax<=1). 1.0이 아니면 체크포인트 "
+                     "이름에 _xm 태그가 붙어 기존 결과와 분리된다")
+ap.add_argument("--seed-mode", default="config", choices=["config", "fold"],
+                help="config: (fold,LB,n1)마다 시드 고정 → shard 분할과 무관하게 "
+                     "재현 가능 (기본). fold: 구버전 동작 (fold 단위 시드, "
+                     "config 순서에 결과가 의존)")
 args = ap.parse_args()
 
 LAM_VAL   = args.lam
@@ -64,7 +89,8 @@ DELTA_VAL = int(args.delta) if float(args.delta).is_integer() else args.delta
 
 HORIZON_ARG = args.horizon
 
-TAG = f"[h{HORIZON_ARG} LB{args.lb or 'all'} λ={LAM_VAL}]"
+TAG = (f"[h{HORIZON_ARG} LB{args.lb or 'all'} "
+       f"n1{args.n1 or 'all'} λ={LAM_VAL}]")
 _T0 = time.time()
 
 def _el():
@@ -88,7 +114,7 @@ stock_names = inds.columns.tolist()
 full_np     = inds.values
 full_dates  = inds.index
 
-gamma, x_min, x_max = 0.0, 0.0, 1.0
+gamma, x_min, x_max = 0.0, 0.0, args.xmax
 N_STOCKS   = len(inds.columns)
 HORIZON    = HORIZON_ARG
 REBAL      = 21
@@ -104,9 +130,16 @@ PATIENCE   = 20
 VAL_YEARS, TEST_YEARS, N_FOLDS = 5, 1, 8
 LOOKBACK_LIST = args.lb if args.lb else [252, 504]
 _LBTAG        = f"_LB{'-'.join(map(str, LOOKBACK_LIST))}" if args.lb else ""
-N1_LIST       = [0.1, 0.2, 0.3, 0.4]
+_XMTAG        = "" if args.xmax >= 1.0 else f"_xm{args.xmax:g}"
+N1_LIST       = args.n1 if args.n1 else [0.1, 0.2, 0.3, 0.4]
+_N1TAG        = f"_n1{'-'.join(f'{v:g}' for v in N1_LIST)}" if args.n1 else ""
 configs = [{"LOOKBACK": lb, "n1": n1}
            for lb in LOOKBACK_LIST for n1 in N1_LIST]
+
+
+def config_seed(fold_id, lookback, n1):
+    """(fold, LOOKBACK, n1)에만 의존하는 시드 — shard 분할과 무관하게 동일."""
+    return 42 + 100_000 * fold_id + 10 * int(lookback) + int(round(n1 * 100))
 
 
 def date_to_idx(s):
@@ -133,13 +166,53 @@ is_mean = full_np[:init_train_end].mean(axis=0)
 is_std  = full_np[:init_train_end].std(axis=0)
 
 
-def make_windows(data, lookback, horizon, start, end):
-    samples = []
-    for t in range(max(start, lookback), end - horizon + 1):
+class WindowSet:
+    """(z, r) 샘플 집합.
+
+    리스트 대신 연속 배열 Z/R 하나로 보관한다. 이유는 메모리다.
+    기존 구현은 float64 리스트 → np.array float64 복사 → float32 텐서로
+    같은 데이터를 3중으로 들고 있어 원소당 12바이트를 상시 점유했다.
+    float32로 한 번만 담아 torch.from_numpy로 무복사 변환하면 4바이트다.
+
+    리스트처럼 len/인덱싱/슬라이싱/순회가 되므로 호출부는 그대로 쓴다.
+    슬라이싱(예: [::REBAL])은 뷰라서 추가 복사가 없다.
+    """
+    __slots__ = ("Z", "R")
+
+    def __init__(self, Z, R):
+        self.Z, self.R = Z, R
+
+    def __len__(self):
+        return len(self.Z)
+
+    def __getitem__(self, i):
+        if isinstance(i, slice):
+            return WindowSet(self.Z[i], self.R[i])
+        return (self.Z[i], self.R[i])
+
+    def __iter__(self):
+        for i in range(len(self.Z)):
+            yield (self.Z[i], self.R[i])
+
+
+def make_windows(data, lookback, horizon, start, end, dtype=np.float32):
+    """
+    dtype=float32 : 학습/검증용. 어차피 float32 텐서가 되므로 값은 동일하고
+                    메모리만 1/3이 된다.
+    dtype=float64 : 백테스트용. backtest_dfl_mdd가 z를 float64로 역정규화해
+                    Sigma를 추정하므로 기존 수치를 그대로 재현하려면 필요하다.
+                    rebal 샘플은 십여 개뿐이라 메모리에 영향이 없다.
+    """
+    ts = range(max(start, lookback), end - horizon + 1)
+    m  = data.shape[1]
+    Z  = np.empty((len(ts), lookback * m), dtype=dtype)
+    R  = np.empty((len(ts), horizon, m),   dtype=dtype)
+    for i, t in enumerate(ts):
         z_raw  = data[t - lookback:t]
-        z_norm = (z_raw - is_mean) / (is_std + 1e-8)
-        samples.append((z_norm.flatten(), data[t:t + horizon]))
-    return samples
+        z_norm = (z_raw - is_mean) / (is_std + 1e-8)   # 정규화는 float64로 계산
+        Z[i]   = z_norm.ravel()                        # 마지막에만 캐스팅
+        R[i]   = data[t:t + horizon]
+    return WindowSet(Z, R)
 
 
 # ══════════════════════════════════════════════════════════
@@ -152,9 +225,11 @@ CKPT_DIR = "./checkpoint"
 os.makedirs(CKPT_DIR, exist_ok=True)
 ckpt_path = os.path.join(
     CKPT_DIR,
-    f"dfl_mdd_{N_STOCKS}_inds_h{HORIZON}{_LBTAG}_d{DELTA_VAL}_l{LAM_VAL}_{SOLVER}.pkl")
+    f"dfl_mdd_{N_STOCKS}_inds_h{HORIZON}{_XMTAG}{_LBTAG}{_N1TAG}"
+    f"_d{DELTA_VAL}_l{LAM_VAL}_{SOLVER}.pkl")
 
 log(f"데이터 {args.data} industries ({N_STOCKS}개 자산, {len(full_np)}일)")
+log(f"x_max={x_max}")
 log(f"HORIZON={HORIZON}, solver={SOLVER}, delta={DELTA_VAL}, "
     f"config {len(configs)}개 × fold {N_FOLDS}개")
 log(f"체크포인트: {ckpt_path}")
@@ -181,11 +256,16 @@ for fold_info in folds:
         continue
 
     log(f"── fold {fold_id} (test={fold_info['test_year']}) ──")
-    torch.manual_seed(42); np.random.seed(42); random.seed(42)
+    if args.seed_mode == "fold":
+        torch.manual_seed(42); np.random.seed(42); random.seed(42)
 
     for cfg in configs:
         LOOKBACK, n1 = cfg["LOOKBACK"], cfg["n1"]
         t0 = time.time()
+
+        if args.seed_mode == "config":
+            _sd = config_seed(fold_id, LOOKBACK, n1)
+            torch.manual_seed(_sd); np.random.seed(_sd); random.seed(_sd)
 
         train_samples = make_windows(full_np, LOOKBACK, HORIZON,
                                      start=LOOKBACK,
@@ -195,7 +275,8 @@ for fold_info in folds:
                                      end=fold_info["val_end_idx"])[::HORIZON]
         rebal_samples = make_windows(full_np, LOOKBACK, HORIZON,
                                      start=fold_info["test_start_idx"],
-                                     end=fold_info["test_end_idx"])[::REBAL]
+                                     end=fold_info["test_end_idx"],
+                                     dtype=np.float64)[::REBAL]
         # HORIZON이 크면 뒤쪽 fold에 리밸런싱 윈도우가 없을 수 있음
         # (예: H=252, 2025년 test — 리밸런싱 후 252거래일치 미래 데이터가 없음)
         if len(rebal_samples) == 0:

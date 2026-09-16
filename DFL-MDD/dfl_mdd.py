@@ -293,6 +293,22 @@ def forward_pass(z, r_real, pred_model, opt_layer, n1, C, d, x_min, x_max, lam,
             "y_real": y_real, "w_real": w_real,
             "R_real": R_real, "M_real": M_real, "Sharpe": Sharpe, "loss": loss}
 
+def _stack_f32(samples, field):
+    """샘플 집합을 (n, ...) float32 텐서로 만든다.
+
+    run_dfl_mdd.WindowSet처럼 연속 float32 배열(.Z/.R)을 들고 있으면
+    torch.from_numpy로 복사 없이 감싼다 (메모리 1/3). 그 외(리스트 등)는
+    기존과 동일하게 스택 후 캐스팅한다. 두 경로의 값은 같다.
+
+    from_numpy는 메모리를 공유하므로 반환된 텐서를 in-place로 수정하면 안 된다.
+    현재 학습 루프는 zs_tr[idx] 같은 advanced indexing(복사)만 쓴다.
+    """
+    arr = getattr(samples, ("Z", "R")[field], None)
+    if arr is not None and arr.dtype == np.float32:
+        return torch.from_numpy(arr)
+    return torch.tensor(np.array([s[field] for s in samples]), dtype=torch.float32)
+
+
 # =============================================================================
 # Train (DFL-MDD) — Val Early Stopping
 # =============================================================================
@@ -314,12 +330,12 @@ def train_dfl_mdd(pred_model, opt_layer, train_samples, val_samples=None,
         optimizer, mode="min", factor=lr_factor, patience=lr_patience
     )
 
-    zs_tr = torch.tensor(np.array([s[0] for s in train_samples]), dtype=torch.float32)
-    rs_tr = torch.tensor(np.array([s[1] for s in train_samples]), dtype=torch.float32)
+    zs_tr = _stack_f32(train_samples, 0)
+    rs_tr = _stack_f32(train_samples, 1)
 
     if val_samples is not None:
-        zs_val = torch.tensor(np.array([s[0] for s in val_samples]), dtype=torch.float32)
-        rs_val = torch.tensor(np.array([s[1] for s in val_samples]), dtype=torch.float32)
+        zs_val = _stack_f32(val_samples, 0)
+        rs_val = _stack_f32(val_samples, 1)
 
     best_val_loss    = float("inf")
     best_state       = None
