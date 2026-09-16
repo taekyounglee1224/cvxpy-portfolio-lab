@@ -41,19 +41,18 @@ The predictor is a 3-layer MLP (`Linear → ReLU → Linear → ReLU → Linear`
 Given the predicted path `Ŷ = [ŷ₁, …, ŷ_N]`, solve
 
 $$
-\max_{x,\,u}\;\; \hat{y}_N^\top x \;-\; \frac{\delta}{2}\lVert L^\top x\rVert^2 \;-\; \gamma\lVert x\rVert^2
+\begin{aligned}
+\max_{x, u} \quad
+  & \hat{y}_N^\top x - \frac{\delta}{2} \lVert L^\top x \rVert^2 - \gamma \lVert x \rVert^2 \\
+\text{s.t.} \quad
+  & u_0 = 0 \\
+  & u_k - \hat{y}_k^\top x \le n_1 C, \quad k = 1, \dots, N \\
+  & u_k \ge \hat{y}_k^\top x, \quad k = 1, \dots, N \\
+  & u_k \ge u_{k-1}, \quad k = 1, \dots, N \\
+  & x_{\min} \le x_i \le x_{\max}, \quad i = 1, \dots, m \\
+  & \sum_{i=1}^{m} x_i = 1
+\end{aligned}
 $$
-
-subject to the drawdown-path constraints
-
-$$
-u_0 = 0,\qquad
-u_k - \hat{y}_k^\top x \le n_1 C,\qquad
-u_k \ge \hat{y}_k^\top x,\qquad
-u_k \ge u_{k-1},\qquad k = 1,\dots,N
-$$
-
-and the portfolio constraints `x_min ≤ x ≤ x_max`, `Σx = 1`.
 
 `u_k` tracks the running maximum of the cumulative return path, so `u_k − ŷ_kᵀx ≤ n₁C` caps the drawdown at any point within the horizon. `Σ = LLᵀ` is the Cholesky factor of the sample covariance, kept as a parameter so the problem stays DPP-compliant.
 
