@@ -38,7 +38,7 @@ Given the predicted path `Ŷ = [ŷ₁, …, ŷ_N]`, solve
 $$
 \begin{aligned}
 \max_{x, u} \quad
-  & \hat{y}_N^\top x - \frac{\delta}{2} \lVert L^\top x \rVert^2 - \gamma \lVert x \rVert^2 \\
+  & \hat{y}_N^\top x - \frac{\delta}{2} \lVert L^\top x \rVert^2 \\
 \text{s.t.} \quad
   & u_0 = 0 \\
   & u_k - \hat{y}_k^\top x \le n_1 C, \quad k = 1, \dots, N \\
