@@ -25,14 +25,9 @@ DFL closes the loop. The optimization problem is embedded as a differentiable la
 
 ### Architecture
 
-```
-returns window  ──►  MLP  ──►  predicted cumulative      ──►  CVXPY layer  ──►  weights x
-  (LOOKBACK×m)         Ŷ ∈ R^(N×m)   return path              (drawdown-constrained)      │
-                                                                                          ▼
-                                        loss  L = λ·(−Sharpe) + (1−λ)·MDD_real  ◄──  realized returns
-                                                        │
-                                                        └── backprop through the layer
-```
+<p align="center">
+  <img src="assets/dfl_mdd_architecture.svg" alt="DFL-MDD architecture: a lookback window feeds an MLP that predicts a cumulative return path, which is solved by a drawdown-constrained CVXPY layer into portfolio weights; the decision loss on realized returns is backpropagated through the layer into the predictor." width="100%">
+</p>
 
 The predictor is a 3-layer MLP (`Linear → ReLU → Linear → ReLU → Linear`) mapping a flattened lookback window to an `N × m` cumulative-return path.
 
