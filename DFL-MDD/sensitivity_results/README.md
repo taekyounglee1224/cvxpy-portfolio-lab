@@ -34,7 +34,7 @@ The weight-cap experiment was intentionally skipped for 30 industries.
 sensitivity_results/
   README.md
   10_inds/
-    results/     33 CSV
+    results/     29 CSV
     plots/       70 PNG
   30_inds/
     results/     13 CSV
@@ -54,26 +54,30 @@ carry-forward) is excluded, because the current format below covers its content 
 
 | File | Contents | Rows |
 | --- | --- | --- |
-| `{N}_inds_tc_cf_lam{L}.csv`<br>`{N}_inds_h126_tc_cf_lam{L}.csv` | **H=126**, all models, 5 TC levels | 125 |
+| `10_inds_h126_xm1_tc_cf_lam{L}.csv` | 10 inds, **H=126**, all models, 5 TC levels | 125 |
+| `30_inds_h126_tc_cf_lam{L}.csv` | 30 inds, **H=126**, same | 125 |
 | `{N}_inds_h252_tc_cf_lam{L}.csv` | **H=252**, same | 125 |
-| `{N}_inds_tc_full_cf.csv`<br>`{N}_inds_h126_tc_full_cf.csv` | H=126, 4 lambda values combined | 500 |
+| `10_inds_tc_full_cf.csv` | 10 inds, H=126, 4 lambda values combined | 500 |
+| `30_inds_h126_tc_full_cf.csv` | 30 inds, H=126, 4 lambda values combined | 500 |
 | `{N}_inds_h252_tc_full_cf.csv` | H=252, 4 lambda values combined | 500 |
 
-> **Naming note.** For H=126 the 10-industry files use the older untagged name
-> (`10_inds_tc_cf_lam*.csv`) while the 30-industry files carry the tag
-> (`30_inds_h126_tc_cf_lam*.csv`). **The contents are the same**; only the column
-> difference noted below applies.
+> **Naming note.** At 10 industries the per-lambda H=126 files carry the weight-cap tag
+> (`xm1`, that is x_max = 1.0), because the uncapped case *is* the baseline and the
+> earlier untagged copies (`10_inds_tc_cf_lam*.csv`) held identical values and were
+> removed. The combined H=126 file for 10 industries keeps its untagged name
+> (`10_inds_tc_full_cf.csv`); there is no `10_inds_h126_tc_full_cf.csv`.
 
 **Columns**
 
 ```
 [H] [lam] tc_bps  group  label
-Ann.Ret(%)  Sharpe  CVaR(5%)(%)  MDD(%)  MDD_abs(%)  Calmar  HHI  Turnover
+Ann.Ret(%)  Sharpe  CVaR(5%)(%)  MDD(%)  MDD_abs(%)  Calmar  HHI  [MaxW]  Turnover
 ```
 
-- The `H` column is absent only in the two untagged 10-industry files
-  (`10_inds_tc_cf_lam*.csv`, `10_inds_tc_full_cf.csv`). Those files are all H=126.
+- The `H` column is absent in the 10-industry H=126 files
+  (`10_inds_h126_xm1_tc_cf_lam*.csv`, `10_inds_tc_full_cf.csv`). Those files are all H=126.
 - The `lam` column appears only in `*_tc_full_cf.csv` (the combined files).
+- The `MaxW` column appears only in the `xm{v}`-tagged files (see 3-4).
 - `group` is one of DFL-MDD / DFL-MVO / PTO-MDD / PTO-MVO / Benchmark.
 - `MDD` is the relative drawdown measured on the compounded equity curve.
 - `MDD_abs` is the absolute drawdown on additive cumulative return, matching the
@@ -126,7 +130,7 @@ The significance cells hold one of three marks:
 
 | File | Contents |
 | --- | --- |
-| `10_inds_h126_xm{v}_tc_cf_lam{L}.csv` | all models, per x_max and per lambda (v = 1, 0.6, 0.3, 0.2) |
+| `10_inds_h126_xm{v}_tc_cf_lam{L}.csv` | all models, per x_max and per lambda (v = 1, 0.6, 0.3, 0.2). The `xm1` files are the uncapped baseline and are the H=126 per-lambda files referenced in 3-1 |
 | `10_inds_h126_xmax_compare.csv` | combined table across all x_max |
 | `10_inds_h126_xmax_tc_all.csv` | combined across x_max and TC |
 | `10_inds_h126_xmax_ttest.csv` | t-tests per x_max (192 rows) |
@@ -136,7 +140,7 @@ The significance cells hold one of three marks:
 fair. EW is 1/N by construction and is unaffected by the cap.
 
 These files add `MaxW` (the realized maximum weight, for verifying the cap is
-respected) to the 3-1 columns. `xmax_compare.csv` further adds `x_max` and `nActive`
+respected) to the 3-1 columns. `10_inds_h126_xmax_compare.csv` further adds `x_max` and `nActive`
 (the number of assets with weight greater than zero).
 
 ### 3-5. Figures
