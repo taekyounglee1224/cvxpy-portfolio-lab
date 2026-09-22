@@ -170,7 +170,7 @@ respected) to the 3-1 columns. `10_inds_h126_xmax_compare.csv` further adds `x_m
 | `dfl_mvo_delta_sweep_{N}_inds_h126.png` | **delta sweep**: DFL-MVO concentration (HHI) against delta |
 | `ranked_MDD_xmax_10_inds_h126_lam{L}.png` | the four x_max values side by side (10 inds) |
 | `cumret_xmax_10_inds_h126_lam{L}.png` | cumulative return by x_max (10 inds) |
-| `n1_monotonicity_{N}_inds.png` | four-panel summary of the drawdown-budget monotonicity analysis |
+| `n1_monotonicity_{N}_inds.png` | drawdown-budget monotonicity: (a) mean per-window drawdown by n1 with within-subject CI, (b) its distribution per n1, (c) pairwise paired t-statistics, (d) realized risk against the budget with the violation rate |
 
 In the original `plots/` folder some H=126 figures were saved under an early naming
 scheme with no horizon tag (for example `dfl_mdd_10_inds_0.3_CLARABEL_cf.png`). They
