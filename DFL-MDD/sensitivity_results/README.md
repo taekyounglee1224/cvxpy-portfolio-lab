@@ -34,13 +34,15 @@ The weight-cap experiment was intentionally skipped for 30 industries.
 sensitivity_results/
   README.md
   10_inds/
-    results/     29 CSV
-    plots/       70 PNG
+    results/     33 CSV
+    plots/       71 PNG
   30_inds/
-    results/     13 CSV
-    plots/       62 PNG
+    results/     17 CSV
+    plots/       63 PNG
   docs/
-    delta_analysis.md    in-depth analysis of the delta sensitivity
+    delta_analysis.md              in-depth analysis of the delta sensitivity
+    dd_constraint_monotonicity.md  why realized risk is not monotone in the
+                                   drawdown budget n1 (reviewer response)
 ```
 
 An earlier CSV format (one file per lambda and per transaction-cost level, without
@@ -126,7 +128,19 @@ The significance cells hold one of three marks:
 | en dash (U+2013) | no significant difference |
 | ballot X (U+2717) | comparison model significantly better |
 
-### 3-4. Weight cap (10 industries only)
+### 3-4. Drawdown-budget monotonicity
+
+Evidence that realized risk does order in the budget n1 at the per-window level, even
+though the aggregate eight-year drawdown does not. See
+`docs/dd_constraint_monotonicity.md` for the argument.
+
+| File | Contents |
+| --- | --- |
+| `{N}_inds_n1_monotonicity.csv` | Page's L trend test plus paired t and Wilcoxon results, per horizon |
+| `{N}_inds_n1_monotonicity_violations.csv` | mean / median / p90 realized drawdown and the budget violation rate, per n1 |
+| `{N}_inds_n1_monotonicity_feasible_only*.csv` | same, restricted to windows where the LP solved under every budget |
+
+### 3-4b. Weight cap (10 industries only)
 
 | File | Contents |
 | --- | --- |
@@ -156,6 +170,7 @@ respected) to the 3-1 columns. `10_inds_h126_xmax_compare.csv` further adds `x_m
 | `dfl_mvo_delta_sweep_{N}_inds_h126.png` | **delta sweep**: DFL-MVO concentration (HHI) against delta |
 | `ranked_MDD_xmax_10_inds_h126_lam{L}.png` | the four x_max values side by side (10 inds) |
 | `cumret_xmax_10_inds_h126_lam{L}.png` | cumulative return by x_max (10 inds) |
+| `n1_monotonicity_{N}_inds.png` | four-panel summary of the drawdown-budget monotonicity analysis |
 
 In the original `plots/` folder some H=126 figures were saved under an early naming
 scheme with no horizon tag (for example `dfl_mdd_10_inds_0.3_CLARABEL_cf.png`). They
