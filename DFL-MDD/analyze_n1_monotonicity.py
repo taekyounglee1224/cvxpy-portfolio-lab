@@ -98,12 +98,15 @@ def load_long(n_stocks, horizon):
     return d
 
 
-def to_blocks(d, feasible_only):
+def drop_infeasible(d):
+    """Remove every (LB, lam, window) block that was infeasible under any n1."""
+    bad = d[d.infeasible].set_index(["LB", "lam", "w"]).index.unique()
+    return (d.set_index(["LB", "lam", "w"])
+             .drop(index=bad, errors="ignore").reset_index())
+
+
+def to_blocks(d):
     """Pivot to a (block x n1) matrix, dropping blocks with any missing cell."""
-    if feasible_only:
-        bad = (d[d.infeasible]
-               .set_index(["LB", "lam", "w"]).index.unique())
-        d = d.set_index(["LB", "lam", "w"]).drop(index=bad, errors="ignore").reset_index()
     wide = d.pivot_table(index=["LB", "lam", "w"], columns="n1", values="M_real")
     return wide.dropna()[N1_LIST]
 
@@ -164,7 +167,9 @@ def main():
         recs, viol = [], []
         for horizon in (126, 252):
             d = load_long(n_stocks, horizon)
-            X = to_blocks(d, args.feasible_only)
+            if args.feasible_only:
+                d = drop_infeasible(d)      # both tables must see the same rows
+            X = to_blocks(d)
             recs.append({"N": n_stocks, "H": horizon,
                          **analyse(X, f"{n_stocks} inds, H={horizon}")})
             v = violation_table(d)

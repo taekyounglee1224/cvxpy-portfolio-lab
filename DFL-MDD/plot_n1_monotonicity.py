@@ -169,7 +169,7 @@ def main():
 
     for n_stocks in (10, 30):
         longs = {H: load_long(n_stocks, H) for H in (126, 252)}
-        blocks = {H: to_blocks(longs[H], False) for H in (126, 252)}
+        blocks = {H: to_blocks(longs[H]) for H in (126, 252)}
 
         fig, axes = plt.subplots(2, 2, figsize=(13.5, 9.5))
         panel_levels(axes[0, 0], blocks)
