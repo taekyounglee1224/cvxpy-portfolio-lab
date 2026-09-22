@@ -4,7 +4,7 @@ Figure for the drawdown-budget monotonicity test (Reviewer #2, comment 13).
 One figure per universe, four panels:
 
   (a) mean per-window drawdown by budget n1, with within-subject 95% CI
-  (b) distribution of per-window drawdown, one colour per budget
+  (b) kernel density of per-window drawdown, one colour per budget
   (c) pairwise paired t-statistics as a heatmap (lower: H=126, upper: H=252)
   (d) realized drawdown against the budget, with the violation rate
 
@@ -60,18 +60,24 @@ def panel_levels(ax, blocks):
               title_fontsize=8)
 
 
-def panel_hist(ax, long126):
-    v = long126.M_real.values * 100
-    lim = np.percentile(v, 99)
-    bins = np.linspace(0, lim, 50)
+def panel_kde(ax, long126):
+    """Kernel density of per-window drawdown, one curve per budget.
+
+    The top 1% of windows is trimmed: a handful of crisis windows reach 20%+
+    and would otherwise stretch the axis and flatten every curve.
+    """
+    hi = np.percentile(long126.M_real.values * 100, 99)
+    grid = np.linspace(0, hi, 400)
     for n1 in N1_LIST:
         d = long126[long126.n1 == n1].M_real.values * 100
-        ax.hist(d[d <= lim], bins=bins, histtype="step", lw=1.9,
-                color=N1_COL[n1], label=f"$n_1$ = {n1}")
-    ax.set_xlim(0, lim)
+        d = d[d <= hi]
+        y = stats.gaussian_kde(d)(grid)
+        ax.plot(grid, y, lw=2.2, color=N1_COL[n1], label=f"$n_1$ = {n1}")
+    ax.set_xlim(0, hi)
+    ax.set_ylim(bottom=0)
     ax.set_xlabel("per-window drawdown (%)")
-    ax.set_ylabel("windows")
-    ax.set_title("(b)  Distribution by budget  (H=126)",
+    ax.set_ylabel("density")
+    ax.set_title("(b)  Distribution by budget  (H=126, top 1% trimmed)",
                  fontsize=10.5, loc="left")
     ax.legend(fontsize=9, frameon=False)
 
@@ -99,13 +105,14 @@ def panel_heatmap(ax, blocks, fig):
                 ann[i, j] = f"{t:+.1f}\n{mark}" if mark else f"{t:+.1f}"
 
     vmax = np.nanmax(np.abs(M))
-    im = ax.imshow(M, cmap="RdBu_r",
+    im = ax.imshow(M, cmap="RdBu_r", aspect="auto",
                    norm=TwoSlopeNorm(vcenter=0, vmin=-vmax, vmax=vmax))
     for i in range(k):
         for j in range(k):
             if i == j:
                 ax.add_patch(plt.Rectangle((j - .5, i - .5), 1, 1,
-                                           facecolor="#EDEFF2", edgecolor="none"))
+                                           facecolor="#EDEFF2", edgecolor="none",
+                                           zorder=3))
             elif ann[i, j]:
                 ax.text(j, i, ann[i, j], ha="center", va="center", fontsize=8.5,
                         color="#111" if abs(M[i, j]) < vmax * .6 else "white")
@@ -117,7 +124,7 @@ def panel_heatmap(ax, blocks, fig):
                  "      lower left: H=126     upper right: H=252",
                  fontsize=10.5, loc="left")
     ax.grid(False)
-    cb = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+    cb = fig.colorbar(im, ax=ax, fraction=0.040, pad=0.03)
     cb.set_label("t  (positive = looser budget has larger drawdown)", fontsize=8)
     cb.ax.tick_params(labelsize=8)
 
@@ -165,7 +172,7 @@ def main():
 
         fig, axes = plt.subplots(2, 2, figsize=(13.5, 9.5))
         panel_levels(axes[0, 0], blocks)
-        panel_hist(axes[0, 1], longs[126])
+        panel_kde(axes[0, 1], longs[126])
         panel_heatmap(axes[1, 0], blocks, fig)
         panel_slack(axes[1, 1], longs[126])
 
@@ -180,7 +187,7 @@ def main():
                      fontsize=14, fontweight="bold")
         plt.tight_layout(rect=[0, 0, 1, 0.95])
         out = f"{args.outdir}/n1_monotonicity_{n_stocks}_inds.png"
-        fig.savefig(out, bbox_inches="tight", dpi=300)
+        fig.savefig(out, bbox_inches="tight", dpi=450)
         plt.close(fig)
         print(f"  saved: {out}")
 
