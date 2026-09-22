@@ -60,13 +60,14 @@ def panel_levels(ax, blocks):
               title_fontsize=8)
 
 
-def panel_kde(ax, long126):
+def panel_kde(ax, long126, trim_pct=5):
     """Kernel density of per-window drawdown, one curve per budget.
 
-    The top 1% of windows is trimmed: a handful of crisis windows reach 20%+
-    and would otherwise stretch the axis and flatten every curve.
+    The top `trim_pct`% of windows is trimmed. A minority of crisis windows
+    reach 20%+ and would otherwise stretch the axis and flatten every curve,
+    hiding the shift between budgets in the body of the distribution.
     """
-    hi = np.percentile(long126.M_real.values * 100, 99)
+    hi = np.percentile(long126.M_real.values * 100, 100 - trim_pct)
     grid = np.linspace(0, hi, 400)
     for n1 in N1_LIST:
         d = long126[long126.n1 == n1].M_real.values * 100
@@ -77,7 +78,7 @@ def panel_kde(ax, long126):
     ax.set_ylim(bottom=0)
     ax.set_xlabel("per-window drawdown (%)")
     ax.set_ylabel("density")
-    ax.set_title("(b)  Distribution by budget  (H=126, top 1% trimmed)",
+    ax.set_title(f"(b)  Distribution by budget  (H=126, top {trim_pct}% trimmed)",
                  fontsize=10.5, loc="left")
     ax.legend(fontsize=9, frameon=False)
 
