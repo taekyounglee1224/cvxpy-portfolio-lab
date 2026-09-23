@@ -2,3 +2,12 @@
 
 # build artifact, regenerable from sensitivity_results/
 *.zip
+
+# local-only: large or regenerable
+DFL-MDD/checkpoint/
+DFL-MDD/logs/
+DFL-MDD/weights/
+
+# python bytecode
+__pycache__/
+*.pyc

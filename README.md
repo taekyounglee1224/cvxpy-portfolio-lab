@@ -106,7 +106,7 @@ DFL-MDD/
 ├── 10_inds.ipynb / 30_inds.ipynb      main analysis
 ├── 10_inds_wcap.ipynb                 weight-cap analysis
 │
-├── checkpoint/   results/   plots/    outputs
+├── results/   plots/                  outputs (checkpoints and logs stay local)
 └── sensitivity_results/               packaged sensitivity analysis (see its README)
 ```
 
@@ -123,7 +123,8 @@ python launch_dfl_mdd.py --workers 16 --lam 0.3 0.5 0.7 1.0
 python merge_ckpt.py
 ```
 
-Checkpoints are named
+Trained checkpoints, training logs and the exported weight CSVs are kept out of
+the repository; the commands above recreate them. Checkpoints are named
 
 ```
 dfl_mdd_{N}_inds_h{H}[_xm{cap}][_LB{lb}][_n1{n1}]_d{δ}_l{λ}_{solver}.pkl

@@ -1,290 +1,0 @@
-[15:53:48 +0:00:01] [h126 LB[252] n1[0.4] λ=0.7] 데이터 10 industries (10개 자산, 6539일)
-[15:53:48 +0:00:01] [h126 LB[252] n1[0.4] λ=0.7] x_max=0.2
-[15:53:48 +0:00:01] [h126 LB[252] n1[0.4] λ=0.7] HORIZON=126, solver=CLARABEL, delta=20, config 1개 × fold 8개
-[15:53:48 +0:00:01] [h126 LB[252] n1[0.4] λ=0.7] 체크포인트: ./checkpoint\dfl_mdd_10_inds_h126_xm0.2_LB252_n10.4_d20_l0.7_CLARABEL.pkl
-[15:53:48 +0:00:01] [h126 LB[252] n1[0.4] λ=0.7] ── fold 1 (test=2018) ──
-
-── DFL-MDD Training (with Val Early Stopping + LR Scheduler) ──
-  Epoch   1/100  train=0.018030  val=-0.020621  lr=1.00e-04  *
-  Epoch   5/100  train=0.022272  val=-0.014324  lr=1.00e-04  (3/20)
-  Epoch  10/100  train=0.010046  val=-0.015949  lr=1.00e-04  (8/20)
-  Epoch  15/100  train=0.013154  val=-0.015361  lr=5.00e-05  (13/20)
-  Epoch  20/100  train=0.010848  val=-0.013817  lr=5.00e-05  (18/20)
-  Early stopping at epoch 22  (best val=-0.034778)
-
-  ✓ Inaccurate 없음
-
-── Backtest : DFL-MDD ──
- Win    R_real    Sharpe    MDD(%)  Top-3 weights
----------------------------------------------------------------------------
-Backtesting:   0%|          | 0/12 [00:00<?, ?it/s]    1    0.0281    0.2236   2.0354%  n= 5  {'Other': np.float32(0.2), 'Utils': np.float32(0.2), 'Hlth': np.float32(0.2)}
-Backtesting:   8%|▊         | 1/12 [00:00<00:01,  8.64it/s]    2   -0.0352   -0.2795   7.8396%  n= 5  {'Other': np.float32(0.2), 'Utils': np.float32(0.2), 'Hlth': np.float32(0.2)}
-Backtesting:  17%|█▋        | 2/12 [00:00<00:01,  5.39it/s]    3   -0.0186   -0.1222   6.1496%  n= 5  {'Other': np.float32(0.2), 'Utils': np.float32(0.2), 'Hlth': np.float32(0.2)}
-Backtesting:  25%|██▌       | 3/12 [00:00<00:01,  6.60it/s]    4    0.0025    0.0151   2.8228%  n= 5  {'Other': np.float32(0.2), 'Utils': np.float32(0.2), 'Hlth': np.float32(0.2)}
-Backtesting:  33%|███▎      | 4/12 [00:00<00:01,  5.57it/s]    5    0.0330    0.1943   0.7087%  n= 5  {'Other': np.float32(0.2), 'Utils': np.float32(0.2), 'Hlth': np.float32(0.2)}
-Backtesting:  42%|████▏     | 5/12 [00:00<00:01,  6.23it/s]    6    0.0127    0.0740   1.7363%  n= 5  {'Other': np.float32(0.2), 'Utils': np.float32(0.2), 'Hlth': np.float32(0.2)}
-Backtesting:  50%|█████     | 6/12 [00:00<00:00,  6.69it/s]    7    0.0277    0.1625   1.5195%  n= 5  {'Other': np.float32(0.2), 'Utils': np.float32(0.2), 'Hlth': np.float32(0.2)}
-Backtesting:  58%|█████▊    | 7/12 [00:01<00:00,  5.56it/s]    8    0.0286    0.1665   1.0013%  n= 5  {'Other': np.float32(0.2), 'Utils': np.float32(0.2), 'Hlth': np.float32(0.2)}
-Backtesting:  67%|██████▋   | 8/12 [00:01<00:00,  6.41it/s]    9    0.0015    0.0089   1.2304%  n= 5  {'Other': np.float32(0.2), 'Utils': np.float32(0.2), 'Hlth': np.float32(0.2)}
-Backtesting:  75%|███████▌  | 9/12 [00:01<00:00,  7.01it/s]   10   -0.0532   -0.3113   6.7496%  n= 5  {'Other': np.float32(0.2), 'Utils': np.float32(0.2), 'Hlth': np.float32(0.2)}
-Backtesting:  83%|████████▎ | 10/12 [00:01<00:00,  6.00it/s]   11    0.0180    0.0979   4.8733%  n= 5  {'Other': np.float32(0.2), 'Utils': np.float32(0.2), 'Hlth': np.float32(0.2)}
-Backtesting:  92%|█████████▏| 11/12 [00:01<00:00,  6.48it/s]   12   -0.0815   -0.4254  14.9414%  n= 5  {'Other': np.float32(0.2), 'Utils': np.float32(0.2), 'Hlth': np.float32(0.2)}
-Backtesting: 100%|██████████| 12/12 [00:01<00:00,  5.47it/s]Backtesting: 100%|██████████| 12/12 [00:01<00:00,  6.02it/s]
-
-  ✓ Backtest Inaccurate 없음
-
-  ✓ Fallback 없음 (0%)
-[16:01:43 +0:07:56] [h126 LB[252] n1[0.4] λ=0.7]    LB=252, n1=0.4  fallback 0/12 (0.0%)  [475s]
-[16:01:43 +0:07:56] [h126 LB[252] n1[0.4] λ=0.7] 체크포인트 저장 (fold 1) — 누적 475s
-[16:01:43 +0:07:56] [h126 LB[252] n1[0.4] λ=0.7] ── fold 2 (test=2019) ──
-
-── DFL-MDD Training (with Val Early Stopping + LR Scheduler) ──
-  Epoch   1/100  train=0.011042  val=-0.008767  lr=1.00e-04  *
-  Epoch   5/100  train=0.007685  val=-0.010889  lr=1.00e-04  (3/20)
-  Epoch  10/100  train=0.003485  val=-0.011491  lr=1.00e-04  (8/20)
-  Epoch  15/100  train=0.007932  val=-0.007025  lr=1.00e-04  (1/20)
-  Epoch  20/100  train=0.004513  val=-0.007683  lr=1.00e-04  (6/20)
-  Epoch  25/100  train=0.004821  val=-0.007683  lr=5.00e-05  (11/20)
-  Epoch  30/100  train=0.004831  val=-0.007683  lr=5.00e-05  (16/20)
-  Early stopping at epoch 34  (best val=-0.013351)
-
-  ✓ Inaccurate 없음
-
-── Backtest : DFL-MDD ──
- Win    R_real    Sharpe    MDD(%)  Top-3 weights
----------------------------------------------------------------------------
-Backtesting:   0%|          | 0/13 [00:00<?, ?it/s]    1    0.0721    0.3404   1.5671%  n= 5  {'Utils': np.float32(0.2), 'Hlth': np.float32(0.2), 'NoDur': np.float32(0.2)}
-Backtesting:   8%|▊         | 1/13 [00:00<00:01,  9.01it/s]    2    0.0308    0.1414   0.9632%  n= 5  {'Utils': np.float32(0.2), 'Hlth': np.float32(0.2), 'NoDur': np.float32(0.2)}
-Backtesting:  15%|█▌        | 2/13 [00:00<00:01,  5.67it/s]    3    0.0152    0.0735   1.7947%  n= 5  {'Utils': np.float32(0.2), 'Shops': np.float32(0.2), 'Durbl': np.float32(0.2)}
-Backtesting:  23%|██▎       | 3/13 [00:00<00:01,  6.51it/s]    4   -0.0035   -0.0175   1.5296%  n= 5  {'Utils': np.float32(0.2), 'Hlth': np.float32(0.2), 'NoDur': np.float32(0.2)}
-Backtesting:  31%|███       | 4/13 [00:00<00:01,  5.35it/s]    5   -0.0359   -0.1854   5.2638%  n= 5  {'Utils': np.float32(0.2), 'Hlth': np.float32(0.2), 'NoDur': np.float32(0.2)}
-Backtesting:  38%|███▊      | 5/13 [00:00<00:01,  6.27it/s]    6    0.0635    0.3255   1.1422%  n= 6  {'Utils': np.float32(0.2), 'Shops': np.float32(0.2), 'NoDur': np.float32(0.2)}
-Backtesting:  46%|████▌     | 6/13 [00:00<00:01,  6.74it/s]    7   -0.0169   -0.0856   2.8192%  n= 5  {'Utils': np.float32(0.2), 'Hlth': np.float32(0.2), 'NoDur': np.float32(0.2)}
-Backtesting:  54%|█████▍    | 7/13 [00:01<00:01,  5.63it/s]    8   -0.0059   -0.0298   3.0426%  n= 5  {'Utils': np.float32(0.2), 'Hlth': np.float32(0.2), 'NoDur': np.float32(0.2)}
-Backtesting:  62%|██████▏   | 8/13 [00:01<00:00,  6.39it/s]    9    0.0091    0.0436   2.0348%  n= 5  {'Utils': np.float32(0.2), 'Hlth': np.float32(0.2), 'NoDur': np.float32(0.2)}
-Backtesting:  69%|██████▉   | 9/13 [00:01<00:00,  6.79it/s]   10    0.0153    0.0728   1.8899%  n= 5  {'Utils': np.float32(0.2), 'Hlth': np.float32(0.2), 'NoDur': np.float32(0.2)}
-Backtesting:  77%|███████▋  | 10/13 [00:01<00:00,  5.71it/s]   11    0.0171    0.0841   0.8468%  n= 5  {'Utils': np.float32(0.2), 'Hlth': np.float32(0.2), 'NoDur': np.float32(0.2)}
-Backtesting:  85%|████████▍ | 11/13 [00:01<00:00,  6.23it/s]   12    0.0370    0.1894   0.4702%  n= 5  {'Utils': np.float32(0.2), 'Hlth': np.float32(0.2), 'NoDur': np.float32(0.2)}
-   13   -0.0181   -0.1072   3.0262%  n= 5  {'Utils': np.float32(0.2), 'Hlth': np.float32(0.2), 'NoDur': np.float32(0.2)}
-Backtesting: 100%|██████████| 13/13 [00:02<00:00,  6.26it/s]Backtesting: 100%|██████████| 13/13 [00:02<00:00,  6.21it/s]
-
-  ✓ Backtest Inaccurate 없음
-
-  ✓ Fallback 없음 (0%)
-[16:14:57 +0:21:10] [h126 LB[252] n1[0.4] λ=0.7]    LB=252, n1=0.4  fallback 0/13 (0.0%)  [794s]
-[16:14:57 +0:21:10] [h126 LB[252] n1[0.4] λ=0.7] 체크포인트 저장 (fold 2) — 누적 1269s
-[16:14:57 +0:21:10] [h126 LB[252] n1[0.4] λ=0.7] ── fold 3 (test=2020) ──
-
-── DFL-MDD Training (with Val Early Stopping + LR Scheduler) ──
-  Epoch   1/100  train=0.010377  val=-0.014744  lr=1.00e-04  *
-  Epoch   5/100  train=0.011168  val=-0.015074  lr=1.00e-04  *
-  Epoch  10/100  train=0.011483  val=-0.011811  lr=1.00e-04  (5/20)
-  Epoch  15/100  train=0.003424  val=-0.008400  lr=1.00e-04  (10/20)
-  Epoch  20/100  train=0.001986  val=0.001335  lr=5.00e-05  (15/20)
-  Epoch  25/100  train=0.001457  val=0.001177  lr=5.00e-05  (20/20)
-  Early stopping at epoch 25  (best val=-0.015074)
-
-  ✓ Inaccurate 없음
-
-── Backtest : DFL-MDD ──
- Win    R_real    Sharpe    MDD(%)  Top-3 weights
----------------------------------------------------------------------------
-Backtesting:   0%|          | 0/13 [00:00<?, ?it/s]    1    0.0063    0.0358   2.3788%  n= 5  {'Utils': np.float32(0.2), 'Hlth': np.float32(0.2), 'NoDur': np.float32(0.2)}
-Backtesting:   8%|▊         | 1/13 [00:00<00:01,  8.37it/s]    2   -0.0502   -0.2654  12.5802%  n= 5  {'HiTec': np.float32(0.2), 'Hlth': np.float32(0.2), 'NoDur': np.float32(0.2)}
-Backtesting:  15%|█▌        | 2/13 [00:00<00:01,  5.70it/s]    3   -0.1571   -0.7488  30.6952%  n= 5  {'Other': np.float32(0.2), 'Hlth': np.float32(0.2), 'NoDur': np.float32(0.2)}
-Backtesting:  23%|██▎       | 3/13 [00:00<00:01,  6.88it/s]    4    0.1604    0.3892   4.1811%  n= 5  {'Other': np.float32(0.2), 'Hlth': np.float32(0.2), 'Durbl': np.float32(0.2)}
-Backtesting:  31%|███       | 4/13 [00:00<00:01,  5.62it/s]    5    0.0891    0.2061   3.7557%  n= 6  {'HiTec': np.float32(0.2), 'Hlth': np.float32(0.2), 'NoDur': np.float32(0.2)}
-Backtesting:  38%|███▊      | 5/13 [00:00<00:01,  6.58it/s]    6   -0.0020   -0.0045   7.5525%  n= 5  {'Other': np.float32(0.2), 'Utils': np.float32(0.2), 'Hlth': np.float32(0.2)}
-Backtesting:  46%|████▌     | 6/13 [00:00<00:00,  7.25it/s]    7    0.0740    0.1682   2.2100%  n= 5  {'Utils': np.float32(0.2), 'Hlth': np.float32(0.2), 'Durbl': np.float32(0.2)}
-Backtesting:  54%|█████▍    | 7/13 [00:01<00:00,  6.05it/s]    8    0.1166    0.2597   0.8003%  n= 5  {'HiTec': np.float32(0.2), 'Hlth': np.float32(0.2), 'NoDur': np.float32(0.2)}
-Backtesting:  62%|██████▏   | 8/13 [00:01<00:00,  6.76it/s]    9   -0.0306   -0.0689   8.5757%  n= 5  {'HiTec': np.float32(0.2), 'Hlth': np.float32(0.2), 'NoDur': np.float32(0.2)}
-Backtesting:  69%|██████▉   | 9/13 [00:01<00:00,  7.20it/s]   10   -0.0007   -0.0015   5.9132%  n= 6  {'HiTec': np.float32(0.2), 'Hlth': np.float32(0.2), 'Durbl': np.float32(0.2)}
-Backtesting:  77%|███████▋  | 10/13 [00:01<00:00,  5.94it/s]   11    0.1490    0.3111   1.1513%  n= 6  {'HiTec': np.float32(0.2), 'Hlth': np.float32(0.2), 'Durbl': np.float32(0.2)}
-Backtesting:  85%|████████▍ | 11/13 [00:01<00:00,  6.69it/s]   12    0.0591    0.1274   1.3737%  n= 5  {'HiTec': np.float32(0.2), 'Hlth': np.float32(0.2), 'NoDur': np.float32(0.2)}
-   13    0.0141    0.0308   3.5344%  n= 7  {'HiTec': np.float32(0.2), 'Hlth': np.float32(0.2), 'Manuf': np.float32(0.2)}
-Backtesting: 100%|██████████| 13/13 [00:01<00:00,  6.51it/s]Backtesting: 100%|██████████| 13/13 [00:01<00:00,  6.51it/s]
-
-  ✓ Backtest Inaccurate 없음
-
-  ✓ Fallback 없음 (0%)
-[16:26:31 +0:32:44] [h126 LB[252] n1[0.4] λ=0.7]    LB=252, n1=0.4  fallback 0/13 (0.0%)  [694s]
-[16:26:31 +0:32:44] [h126 LB[252] n1[0.4] λ=0.7] 체크포인트 저장 (fold 3) — 누적 1963s
-[16:26:31 +0:32:44] [h126 LB[252] n1[0.4] λ=0.7] ── fold 4 (test=2021) ──
-
-── DFL-MDD Training (with Val Early Stopping + LR Scheduler) ──
-  Epoch   1/100  train=0.008325  val=0.005984  lr=1.00e-04  *
-  Epoch   5/100  train=0.008398  val=0.016362  lr=1.00e-04  (4/20)
-  Epoch  10/100  train=0.006222  val=0.009162  lr=1.00e-04  (9/20)
-  Epoch  15/100  train=0.004941  val=0.008208  lr=5.00e-05  (14/20)
-  Epoch  20/100  train=0.004846  val=0.004708  lr=5.00e-05  (3/20)
-  Epoch  25/100  train=0.004679  val=0.003315  lr=5.00e-05  (2/20)
-  Epoch  30/100  train=0.005054  val=0.003145  lr=5.00e-05  (3/20)
-  Epoch  35/100  train=0.005137  val=0.003626  lr=5.00e-05  (8/20)
-  Epoch  40/100  train=0.004683  val=0.002838  lr=5.00e-05  (3/20)
-  Epoch  45/100  train=0.005040  val=-0.003361  lr=5.00e-05  *
-  Epoch  50/100  train=0.004901  val=-0.004276  lr=5.00e-05  *
-  Epoch  55/100  train=0.005527  val=-0.003776  lr=5.00e-05  (4/20)
-  Epoch  60/100  train=0.005681  val=-0.001061  lr=5.00e-05  (9/20)
-  Epoch  65/100  train=0.005232  val=-0.000814  lr=2.50e-05  (14/20)
-  Epoch  70/100  train=0.004507  val=0.003575  lr=2.50e-05  (19/20)
-  Early stopping at epoch 71  (best val=-0.004300)
-
-  ✓ Inaccurate 없음
-
-── Backtest : DFL-MDD ──
- Win    R_real    Sharpe    MDD(%)  Top-3 weights
----------------------------------------------------------------------------
-Backtesting:   0%|          | 0/13 [00:00<?, ?it/s]    1    0.0095    0.0234   2.8351%  n= 6  {'Shops': np.float32(0.2), 'Hlth': np.float32(0.2), 'Telcm': np.float32(0.2)}
-    2   -0.0163   -0.0393   3.9470%  n= 6  {'Telcm': np.float32(0.2), 'Hlth': np.float32(0.2), 'Manuf': np.float32(0.2)}
-Backtesting:  15%|█▌        | 2/13 [00:00<00:01,  6.92it/s]    3    0.0759    0.1760   3.5097%  n= 6  {'Shops': np.float32(0.2), 'Hlth': np.float32(0.2), 'Telcm': np.float32(0.2)}
-    4    0.0226    0.0886   1.0737%  n= 5  {'Shops': np.float32(0.2), 'Hlth': np.float32(0.2), 'NoDur': np.float32(0.2)}
-Backtesting:  31%|███       | 4/13 [00:00<00:01,  8.59it/s]    5    0.0000    0.0002   3.0591%  n= 5  {'Shops': np.float32(0.2), 'Hlth': np.float32(0.2), 'NoDur': np.float32(0.2)}
-Backtesting:  38%|███▊      | 5/13 [00:00<00:01,  7.21it/s]    6    0.0230    0.1067   2.2885%  n= 5  {'Shops': np.float32(0.2), 'Hlth': np.float32(0.2), 'NoDur': np.float32(0.2)}
-    7    0.0085    0.0437   2.6073%  n= 5  {'Shops': np.float32(0.2), 'Hlth': np.float32(0.2), 'NoDur': np.float32(0.2)}
-Backtesting:  54%|█████▍    | 7/13 [00:00<00:00,  8.36it/s]    8    0.0131    0.0693   1.3901%  n= 5  {'Utils': np.float32(0.2), 'Hlth': np.float32(0.2), 'NoDur': np.float32(0.2)}
-Backtesting:  62%|██████▏   | 8/13 [00:01<00:00,  7.06it/s]    9   -0.0482   -0.2507   5.9735%  n= 5  {'Shops': np.float32(0.2), 'Hlth': np.float32(0.2), 'NoDur': np.float32(0.2)}
-Backtesting:  69%|██████▉   | 9/13 [00:01<00:00,  7.64it/s]   10    0.0220    0.1229   1.7778%  n= 6  {'Telcm': np.float32(0.2), 'Hlth': np.float32(0.2), 'NoDur': np.float32(0.2)}
-   11   -0.0543   -0.2936   7.0452%  n= 6  {'Telcm': np.float32(0.2), 'Hlth': np.float32(0.2), 'NoDur': np.float32(0.2)}
-Backtesting:  85%|████████▍ | 11/13 [00:01<00:00,  7.36it/s]   12    0.0729    0.4290   1.2628%  n= 5  {'Utils': np.float32(0.2), 'Hlth': np.float32(0.2), 'NoDur': np.float32(0.2)}
-   13   -0.0233   -0.1302   6.8563%  n= 6  {'Telcm': np.float32(0.2), 'Hlth': np.float32(0.2), 'NoDur': np.float32(0.2)}
-Backtesting: 100%|██████████| 13/13 [00:01<00:00,  7.07it/s]Backtesting: 100%|██████████| 13/13 [00:01<00:00,  7.37it/s]
-
-  ✓ Backtest Inaccurate 없음
-
-  ✓ Fallback 없음 (0%)
-[17:00:46 +1:07:00] [h126 LB[252] n1[0.4] λ=0.7]    LB=252, n1=0.4  fallback 0/13 (0.0%)  [2056s]
-[17:00:46 +1:07:00] [h126 LB[252] n1[0.4] λ=0.7] 체크포인트 저장 (fold 4) — 누적 4019s
-[17:00:46 +1:07:00] [h126 LB[252] n1[0.4] λ=0.7] ── fold 5 (test=2022) ──
-
-── DFL-MDD Training (with Val Early Stopping + LR Scheduler) ──
-  Epoch   1/100  train=0.004439  val=0.001906  lr=1.00e-04  *
-  Epoch   5/100  train=0.001803  val=0.005927  lr=1.00e-04  (4/20)
-  Epoch  10/100  train=0.001730  val=0.005864  lr=1.00e-04  (9/20)
-  Epoch  15/100  train=0.001709  val=0.005953  lr=5.00e-05  (14/20)
-  Epoch  20/100  train=0.001670  val=0.006107  lr=5.00e-05  (19/20)
-  Early stopping at epoch 21  (best val=0.001906)
-
-  ✓ Inaccurate 없음
-
-── Backtest : DFL-MDD ──
- Win    R_real    Sharpe    MDD(%)  Top-3 weights
----------------------------------------------------------------------------
-Backtesting:   0%|          | 0/12 [00:00<?, ?it/s]    1   -0.0000    0.0000   4.8833%  n= 5  {'Utils': np.float32(0.2), 'Hlth': np.float32(0.2), 'NoDur': np.float32(0.2)}
-    2    0.0148    0.0817   4.6365%  n= 5  {'Utils': np.float32(0.2), 'Hlth': np.float32(0.2), 'NoDur': np.float32(0.2)}
-Backtesting:  17%|█▋        | 2/12 [00:00<00:00, 10.38it/s]    3    0.0541    0.2955   2.6276%  n= 5  {'Utils': np.float32(0.2), 'Hlth': np.float32(0.2), 'NoDur': np.float32(0.2)}
-    4   -0.0413   -0.2266   7.1374%  n= 5  {'Utils': np.float32(0.2), 'Hlth': np.float32(0.2), 'NoDur': np.float32(0.2)}
-Backtesting:  33%|███▎      | 4/12 [00:00<00:01,  7.90it/s]    5    0.0315    0.1614   5.7016%  n= 5  {'Utils': np.float32(0.2), 'Hlth': np.float32(0.2), 'NoDur': np.float32(0.2)}
-Backtesting:  42%|████▏     | 5/12 [00:00<00:01,  6.71it/s]    6   -0.0753   -0.3525  12.6558%  n= 5  {'Utils': np.float32(0.2), 'Hlth': np.float32(0.2), 'NoDur': np.float32(0.2)}
-    7    0.0664    0.2878   2.1868%  n= 5  {'Utils': np.float32(0.2), 'Hlth': np.float32(0.2), 'NoDur': np.float32(0.2)}
-Backtesting:  58%|█████▊    | 7/12 [00:00<00:00,  7.99it/s]    8   -0.0048   -0.0205   4.4212%  n= 5  {'Utils': np.float32(0.2), 'Hlth': np.float32(0.2), 'NoDur': np.float32(0.2)}
-Backtesting:  67%|██████▋   | 8/12 [00:01<00:00,  7.02it/s]    9   -0.0511   -0.2155  11.2328%  n= 5  {'Utils': np.float32(0.2), 'Hlth': np.float32(0.2), 'NoDur': np.float32(0.2)}
-   10    0.0667    0.2653   3.4501%  n= 5  {'Utils': np.float32(0.2), 'Hlth': np.float32(0.2), 'NoDur': np.float32(0.2)}
-Backtesting:  83%|████████▎ | 10/12 [00:01<00:00,  8.13it/s]   11    0.0450    0.1715   2.2995%  n= 5  {'Utils': np.float32(0.2), 'Hlth': np.float32(0.2), 'NoDur': np.float32(0.2)}
-Backtesting:  92%|█████████▏| 11/12 [00:01<00:00,  7.19it/s]   12   -0.0420   -0.1564   4.8926%  n= 5  {'Utils': np.float32(0.2), 'Hlth': np.float32(0.2), 'NoDur': np.float32(0.2)}
-Backtesting: 100%|██████████| 12/12 [00:01<00:00,  7.68it/s]
-
-  ✓ Backtest Inaccurate 없음
-
-  ✓ Fallback 없음 (0%)
-[17:09:05 +1:15:18] [h126 LB[252] n1[0.4] λ=0.7]    LB=252, n1=0.4  fallback 0/12 (0.0%)  [499s]
-[17:09:05 +1:15:18] [h126 LB[252] n1[0.4] λ=0.7] 체크포인트 저장 (fold 5) — 누적 4518s
-[17:09:05 +1:15:18] [h126 LB[252] n1[0.4] λ=0.7] ── fold 6 (test=2023) ──
-
-── DFL-MDD Training (with Val Early Stopping + LR Scheduler) ──
-  Epoch   1/100  train=0.004044  val=0.018143  lr=1.00e-04  *
-  Epoch   5/100  train=0.003194  val=0.016137  lr=1.00e-04  (1/20)
-  Epoch  10/100  train=0.002906  val=0.017607  lr=1.00e-04  (6/20)
-  Epoch  15/100  train=0.002929  val=0.017604  lr=5.00e-05  (11/20)
-  Epoch  20/100  train=0.002891  val=0.017607  lr=5.00e-05  (16/20)
-  Early stopping at epoch 24  (best val=0.015996)
-
-  ✓ Inaccurate 없음
-
-── Backtest : DFL-MDD ──
- Win    R_real    Sharpe    MDD(%)  Top-3 weights
----------------------------------------------------------------------------
-Backtesting:   0%|          | 0/12 [00:00<?, ?it/s]    1    0.0582    0.1898   3.1079%  n= 5  {'Utils': np.float32(0.2), 'Shops': np.float32(0.2), 'NoDur': np.float32(0.2)}
-Backtesting:   8%|▊         | 1/12 [00:00<00:01,  8.92it/s]    2   -0.0216   -0.0701   5.8513%  n= 5  {'Utils': np.float32(0.2), 'Shops': np.float32(0.2), 'NoDur': np.float32(0.2)}
-    3    0.0264    0.0867   3.7267%  n= 5  {'Utils': np.float32(0.2), 'Shops': np.float32(0.2), 'NoDur': np.float32(0.2)}
-Backtesting:  25%|██▌       | 3/12 [00:00<00:01,  7.32it/s]    4   -0.0004   -0.0015   1.7731%  n= 5  {'Utils': np.float32(0.2), 'Shops': np.float32(0.2), 'NoDur': np.float32(0.2)}
-Backtesting:  33%|███▎      | 4/12 [00:00<00:00,  8.06it/s]    5    0.0212    0.0724   2.1794%  n= 5  {'Utils': np.float32(0.2), 'Shops': np.float32(0.2), 'NoDur': np.float32(0.2)}
-Backtesting:  42%|████▏     | 5/12 [00:00<00:01,  6.68it/s]    6    0.0350    0.1265   1.4052%  n= 5  {'Utils': np.float32(0.2), 'Shops': np.float32(0.2), 'NoDur': np.float32(0.2)}
-    7    0.0094    0.0364   1.8762%  n= 5  {'Utils': np.float32(0.2), 'Shops': np.float32(0.2), 'NoDur': np.float32(0.2)}
-Backtesting:  58%|█████▊    | 7/12 [00:00<00:00,  8.14it/s]    8   -0.0074   -0.0293   3.5773%  n= 5  {'Utils': np.float32(0.2), 'Shops': np.float32(0.2), 'NoDur': np.float32(0.2)}
-Backtesting:  67%|██████▋   | 8/12 [00:01<00:00,  6.99it/s]    9   -0.0775   -0.3162   7.6855%  n= 5  {'Utils': np.float32(0.2), 'Shops': np.float32(0.2), 'NoDur': np.float32(0.2)}
-Backtesting:  75%|███████▌  | 9/12 [00:01<00:00,  7.59it/s]   10    0.0161    0.0696   3.9520%  n= 5  {'Utils': np.float32(0.2), 'Shops': np.float32(0.2), 'NoDur': np.float32(0.2)}
-   11    0.0756    0.3544   0.9101%  n= 5  {'Utils': np.float32(0.2), 'Shops': np.float32(0.2), 'NoDur': np.float32(0.2)}
-Backtesting:  92%|█████████▏| 11/12 [00:01<00:00,  7.32it/s]   12    0.0262    0.1292   1.8798%  n= 5  {'Other': np.float32(0.2), 'Shops': np.float32(0.2), 'NoDur': np.float32(0.2)}
-Backtesting: 100%|██████████| 12/12 [00:01<00:00,  7.60it/s]
-
-  ✓ Backtest Inaccurate 없음
-
-  ✓ Fallback 없음 (0%)
-[17:19:08 +1:25:22] [h126 LB[252] n1[0.4] λ=0.7]    LB=252, n1=0.4  fallback 0/12 (0.0%)  [603s]
-[17:19:08 +1:25:22] [h126 LB[252] n1[0.4] λ=0.7] 체크포인트 저장 (fold 6) — 누적 5121s
-[17:19:08 +1:25:22] [h126 LB[252] n1[0.4] λ=0.7] ── fold 7 (test=2024) ──
-
-── DFL-MDD Training (with Val Early Stopping + LR Scheduler) ──
-  Epoch   1/100  train=0.007458  val=0.011545  lr=1.00e-04  *
-  Epoch   5/100  train=0.002539  val=0.007994  lr=1.00e-04  (2/20)
-  Epoch  10/100  train=0.000971  val=0.007846  lr=1.00e-04  (7/20)
-  Epoch  15/100  train=0.000185  val=0.008462  lr=5.00e-05  (12/20)
-  Epoch  20/100  train=-0.001525  val=0.009415  lr=5.00e-05  (17/20)
-  Early stopping at epoch 23  (best val=0.003788)
-
-  ✓ Inaccurate 없음
-
-── Backtest : DFL-MDD ──
- Win    R_real    Sharpe    MDD(%)  Top-3 weights
----------------------------------------------------------------------------
-Backtesting:   0%|          | 0/13 [00:00<?, ?it/s]    1    0.0037    0.0206   2.0599%  n= 5  {'Utils': np.float32(0.2), 'Hlth': np.float32(0.2), 'NoDur': np.float32(0.2)}
-    2    0.0425    0.2411   1.3236%  n= 5  {'Utils': np.float32(0.2), 'Hlth': np.float32(0.2), 'NoDur': np.float32(0.2)}
-Backtesting:  15%|█▌        | 2/13 [00:00<00:01, 10.16it/s]    3    0.0051    0.0249   1.0845%  n= 5  {'HiTec': np.float32(0.2), 'Hlth': np.float32(0.2), 'NoDur': np.float32(0.2)}
-    4   -0.0193   -0.1172   3.4159%  n= 5  {'Utils': np.float32(0.2), 'Hlth': np.float32(0.2), 'NoDur': np.float32(0.2)}
-Backtesting:  31%|███       | 4/13 [00:00<00:01,  8.04it/s]    5    0.0289    0.1458   2.3494%  n= 5  {'HiTec': np.float32(0.2), 'Hlth': np.float32(0.2), 'NoDur': np.float32(0.2)}
-Backtesting:  38%|███▊      | 5/13 [00:00<00:01,  7.15it/s]    6    0.0046    0.0281   0.6473%  n= 5  {'Utils': np.float32(0.2), 'Hlth': np.float32(0.2), 'NoDur': np.float32(0.2)}
-    7    0.0013    0.0068   4.4191%  n= 5  {'Utils': np.float32(0.2), 'Hlth': np.float32(0.2), 'Durbl': np.float32(0.2)}
-Backtesting:  54%|█████▍    | 7/13 [00:00<00:00,  8.33it/s]    8    0.0318    0.1985   2.6896%  n= 5  {'Utils': np.float32(0.2), 'Hlth': np.float32(0.2), 'NoDur': np.float32(0.2)}
-Backtesting:  62%|██████▏   | 8/13 [00:01<00:00,  7.25it/s]    9    0.0097    0.0585   1.8855%  n= 5  {'Utils': np.float32(0.2), 'Hlth': np.float32(0.2), 'NoDur': np.float32(0.2)}
-   10   -0.0054   -0.0330   2.1584%  n= 5  {'Utils': np.float32(0.2), 'Hlth': np.float32(0.2), 'NoDur': np.float32(0.2)}
-Backtesting:  77%|███████▋  | 10/13 [00:01<00:00,  8.27it/s]   11    0.0314    0.1972   2.1371%  n= 5  {'Utils': np.float32(0.2), 'Hlth': np.float32(0.2), 'NoDur': np.float32(0.2)}
-Backtesting:  85%|████████▍ | 11/13 [00:01<00:00,  7.49it/s]   12   -0.0526   -0.3360   6.2412%  n= 5  {'Utils': np.float32(0.2), 'Hlth': np.float32(0.2), 'NoDur': np.float32(0.2)}
-   13    0.0225    0.1432   1.3172%  n= 5  {'Utils': np.float32(0.2), 'Hlth': np.float32(0.2), 'NoDur': np.float32(0.2)}
-Backtesting: 100%|██████████| 13/13 [00:01<00:00,  8.31it/s]Backtesting: 100%|██████████| 13/13 [00:01<00:00,  8.05it/s]
-
-  ✓ Backtest Inaccurate 없음
-
-  ✓ Fallback 없음 (0%)
-[17:29:35 +1:35:48] [h126 LB[252] n1[0.4] λ=0.7]    LB=252, n1=0.4  fallback 0/13 (0.0%)  [626s]
-[17:29:35 +1:35:48] [h126 LB[252] n1[0.4] λ=0.7] 체크포인트 저장 (fold 7) — 누적 5747s
-[17:29:35 +1:35:48] [h126 LB[252] n1[0.4] λ=0.7] ── fold 8 (test=2025) ──
-
-── DFL-MDD Training (with Val Early Stopping + LR Scheduler) ──
-  Epoch   1/100  train=0.008241  val=0.015700  lr=1.00e-04  *
-  Epoch   5/100  train=-0.000297  val=0.011771  lr=1.00e-04  (3/20)
-  Epoch  10/100  train=-0.000262  val=0.011771  lr=1.00e-04  (8/20)
-  Epoch  15/100  train=-0.000254  val=0.011771  lr=5.00e-05  (13/20)
-  Epoch  20/100  train=-0.000296  val=0.011771  lr=5.00e-05  (18/20)
-  Early stopping at epoch 22  (best val=0.010486)
-
-  ✓ Inaccurate 없음
-
-── Backtest : DFL-MDD ──
- Win    R_real    Sharpe    MDD(%)  Top-3 weights
----------------------------------------------------------------------------
-Backtesting:   0%|          | 0/6 [00:00<?, ?it/s]    1    0.0324    0.1977   1.7257%  n= 5  {'Utils': np.float32(0.2), 'Hlth': np.float32(0.2), 'HiTec': np.float32(0.2)}
-Backtesting:  17%|█▋        | 1/6 [00:00<00:00,  6.20it/s]    2   -0.0042   -0.0254   3.3768%  n= 5  {'Utils': np.float32(0.2), 'Hlth': np.float32(0.2), 'HiTec': np.float32(0.2)}
-    3   -0.0482   -0.2935   3.8308%  n= 5  {'Utils': np.float32(0.2), 'Hlth': np.float32(0.2), 'NoDur': np.float32(0.2)}
-Backtesting:  50%|█████     | 3/6 [00:00<00:00,  8.79it/s]    4    0.0338    0.1940   2.8933%  n= 5  {'Utils': np.float32(0.2), 'Hlth': np.float32(0.2), 'HiTec': np.float32(0.2)}
-Backtesting:  67%|██████▋   | 4/6 [00:00<00:00,  7.76it/s]    5    0.0302    0.1340   2.3312%  n= 6  {'Utils': np.float32(0.2), 'Hlth': np.float32(0.2), 'Enrgy': np.float32(0.2)}
-    6    0.0276    0.1258   1.5039%  n= 5  {'Utils': np.float32(0.2), 'Hlth': np.float32(0.2), 'NoDur': np.float32(0.2)}
-Backtesting: 100%|██████████| 6/6 [00:00<00:00,  7.55it/s]Backtesting: 100%|██████████| 6/6 [00:00<00:00,  7.64it/s]
-
-  ✓ Backtest Inaccurate 없음
-
-  ✓ Fallback 없음 (0%)
-[17:39:44 +1:45:57] [h126 LB[252] n1[0.4] λ=0.7]    LB=252, n1=0.4  fallback 0/6 (0.0%)  [609s]
-[17:39:44 +1:45:57] [h126 LB[252] n1[0.4] λ=0.7] 체크포인트 저장 (fold 8) — 누적 6356s
-[17:39:44 +1:45:57] [h126 LB[252] n1[0.4] λ=0.7] 
-[17:39:44 +1:45:57] [h126 LB[252] n1[0.4] λ=0.7] 완료 — 총 6356초
-[17:39:44 +1:45:57] [h126 LB[252] n1[0.4] λ=0.7] 윈도우 94  fallback 0 (0.0%)  진짜 infeasible 0  수치적 실패 0

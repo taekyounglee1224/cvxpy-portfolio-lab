@@ -250,8 +250,9 @@ drawdown constraint induces, rather than from drawdown control as such.
 
 ## 5. Reproduction
 
-Every result can be regenerated from the checkpoints in the project root
-(`checkpoint/*.pkl`).
+Every result can be regenerated from the trained checkpoints. Those are kept
+locally and are **not distributed with the repository** (they run to about 25MB);
+re-training with the commands below recreates them.
 
 ```
 train     run_dfl_mdd.py / run_dfl_mvo.py   (run in parallel via launch_*.py)
