@@ -1,0 +1,9 @@
+# Normalise line endings so the Windows and macOS clones agree.
+* text=auto eol=lf
+
+# Binary: never touch
+*.png  binary
+*.pkl  binary
+*.zip  binary
+*.docx binary
+*.xlsx binary
