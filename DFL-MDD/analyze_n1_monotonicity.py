@@ -1,5 +1,5 @@
 """
-Reviewer #2, comment 13 — does a tighter drawdown budget (n1) actually reduce
+Reviewer #2, comment 13 -- does a tighter drawdown budget (n1) actually reduce
 realized risk?
 
 The aggregate 8-year maximum drawdown shows no ordering in n1. This script tests

@@ -1,35 +1,39 @@
 """
 benchmarks.py
-─────────────
-재학습 불필요한 벤치마크 & 진단 유틸 (Reviewer #8, #21, #2, #3 대응).
+-------------
+Benchmarks and diagnostics that need no retraining (reviewer comments #8, #21,
+#2 and #3).
 
-제공 항목
+Contents
 --------
-1. 벤치마크 백테스트 (DFL-MDD와 동일한 리밸런싱 시점):
+1. Benchmark backtests, on the same rebalancing dates as DFL-MDD:
      - EW       : equally-weighted
      - GMV      : global minimum variance (long-only)
      - hist-MVO : sample mean-variance (long-only)
-   → DFL 백테스트와 같은 결과 dict 구조 반환
+   They return the same result-dict structure as the DFL backtests.
      (window, weights, w_real, R_real, M_real, MDD_abs, Sharpe)
 
-2. drift 반영 turnover (Reviewer #21):
-     리밸런싱 직전 실현수익으로 표류한 weight 기준 one-way L1.
+2. Drift-aware turnover (reviewer comment #21):
+     one-way L1 against the weights as they drifted with realised returns
+     since the previous rebalancing date.
 
 3. uncompounded absolute drawdown (Reviewer #1, #2):
-     가법(누적합) 경로 기준 절대 낙폭. compounded(상대) 낙폭과 병행 제공.
+     Absolute drawdown on the additive (cumulative-sum) path, reported
+     alongside the compounded relative drawdown.
 
-4. solver infeasibility rate (Reviewer #4) — GMV/MVO 최적화 실패율.
+4. Solver infeasibility rate (reviewer comment #4): how often the GMV / MVO
+   optimization fails.
 
-가정
+Assumptions
 ----
-  full_np  : (T, m) 일별 단순수익률 (decimal)
-  folds    : dict 리스트, 각 원소에 test_start_idx, test_end_idx
-  리밸런싱 : i = test_start_idx + k*REBAL,  단 i + HORIZON <= test_end_idx
-  lookback : full_np[i-LOOKBACK : i]  (i 직전 LOOKBACK일)
-  보유      : i ~ i+REBAL (첫 REBAL일만 실현)
+  full_np  : (T, m) daily simple returns, as decimals
+  folds    : list of dicts, each with test_start_idx and test_end_idx
+  rebalance: i = test_start_idx + k*REBAL, provided i + HORIZON <= test_end_idx
+  lookback : full_np[i-LOOKBACK : i], the LOOKBACK days before i
+  holding  : i to i+REBAL; only the first REBAL days are realised
 
-사용법
-------
+Usage
+-----
   import importlib, benchmarks
   importlib.reload(benchmarks)
   from benchmarks import backtest_benchmark, w_equal, w_gmv, w_mvo, compute_turnover
@@ -49,12 +53,12 @@ __all__ = [
 ]
 
 
-# ──────────────────────────────────────────────
-# 리밸런싱 시점 (DFL 백테스트와 동일)
-# ──────────────────────────────────────────────
+# ----------------------------------------------
+# rebalancing dates (identical to the DFL backtests)
+# ----------------------------------------------
 
 def rebalance_dates(fold, LOOKBACK, HORIZON, REBAL):
-    """fold 하나에서 리밸런싱 인덱스 i 리스트 반환."""
+    """Return the list of rebalancing indices i for one fold."""
     idxs = []
     i = fold["test_start_idx"]
     while i + HORIZON <= fold["test_end_idx"]:
@@ -66,25 +70,26 @@ def rebalance_dates(fold, LOOKBACK, HORIZON, REBAL):
 
 def attach_date_idx(results, folds, LOOKBACK, HORIZON, REBAL):
     """
-    date_idx 없는 결과 리스트(DFL/PTO checkpoint)에 리밸런싱 인덱스 부착.
-    결과는 fold별·윈도우 순서로 저장돼 있다고 가정 (백테스트 생성 순서).
+    Attach rebalancing indices to a result list that has no date_idx
+    (a DFL or PTO checkpoint). Results are assumed to be stored fold by fold
+    and window by window, the order in which the backtest produced them.
 
     Returns
     -------
-    새 리스트 (각 dict에 'date_idx' 추가)
+    a new list, with 'date_idx' added to every dict
     """
     dates = []
     for fold in folds:
         dates += rebalance_dates(fold, LOOKBACK, HORIZON, REBAL)
     if len(dates) != len(results):
-        print(f"  ⚠ attach_date_idx: 길이 불일치 (dates={len(dates)}, "
-              f"results={len(results)}) — 순서/구조 확인 필요")
+        print(f"  warning: attach_date_idx length mismatch (dates={len(dates)}, "
+              f"results={len(results)}); check the ordering and structure")
     return [{**r, "date_idx": d} for r, d in zip(results, dates)]
 
 
-# ──────────────────────────────────────────────
-# 가중치 함수  weight_fn(R_lb) -> w   (R_lb: (LOOKBACK, m))
-# ──────────────────────────────────────────────
+# ----------------------------------------------
+# weight functions: weight_fn(R_lb) -> w, where R_lb is (LOOKBACK, m)
+# ----------------------------------------------
 
 def w_equal(R_lb, **kwargs):
     m = R_lb.shape[1]
@@ -92,10 +97,11 @@ def w_equal(R_lb, **kwargs):
 
 
 def _solve_long_only(objective, x, m, x_max=1.0):
-    """long-only + full-investment QP 공통 solver. (w, feasible) 반환.
+    """Shared long-only, fully-invested QP solver. Returns (w, feasible).
 
-    x_max < 1 이면 자산별 비중 상한을 추가한다 (기본 1.0 = 상한 없음).
-    상한이 있으면 실패 시 fallback 도 EW 대신 상한을 만족하는 균등배분을 쓴다.
+    When x_max < 1 a per-asset weight cap is added (the default 1.0 means no cap).
+    With a cap in place the failure fallback is the equal allocation that still
+    respects the cap, rather than plain EW.
     """
     constraints = [cp.sum(x) == 1, x >= 0]
     if x_max < 1.0:
@@ -109,11 +115,11 @@ def _solve_long_only(objective, x, m, x_max=1.0):
         s = w.sum()
         return (w / s if s > 0 else np.ones(m) / m), True
     except Exception:
-        return np.ones(m) / m, False   # fallback = EW (1/m <= x_max 이면 상한 만족)
+        return np.ones(m) / m, False   # fallback = EW, which respects the cap whenever 1/m <= x_max
 
 
 def w_gmv(R_lb, ridge=1e-4, x_max=1.0, **kwargs):
-    """Global Minimum Variance (long-only): min x'Σx."""
+    """Global minimum variance, long-only: min x' Sigma x."""
     m = R_lb.shape[1]
     Sigma = np.cov(R_lb.T) + ridge * np.eye(m)
     x = cp.Variable(m)
@@ -123,14 +129,16 @@ def w_gmv(R_lb, ridge=1e-4, x_max=1.0, **kwargs):
 
 def w_mvo(R_lb, delta=20.0, ridge=1e-4, x_max=1.0, **kwargs):
     """
-    Historical Mean-Variance (long-only): max mu'x - (delta/2) x'Σx.
+    Historical mean-variance, long-only: max mu'x - (delta/2) x' Sigma x.
 
-    표준 MVO — mu와 Σ를 동일 horizon(일별 lookback)으로 사용해 내부 일관성 유지.
-      mu    = 일별 sample mean
-      Σ     = 일별 lookback 공분산 (+ ridge)
-    (mu·Σ를 같은 배수로 스케일해도 argmax 불변이므로 일별-일별이 표준.
-     mu만 horizon 배수로 키우면 return이 risk를 과대 지배해 error-maximization
-     (극단 집중)이 발생하므로 사용하지 않음.)
+    Standard MVO: mu and Sigma are taken over the same horizon (the daily
+    lookback), which keeps the objective internally consistent.
+      mu    = daily sample mean
+      Sigma = daily lookback covariance (plus ridge)
+    Scaling mu and Sigma by the same factor leaves the argmax unchanged, so
+    daily-daily is the standard choice. Scaling only mu up to the horizon would
+    let the return term dominate risk and produce error maximization (extreme
+    concentration), so it is not used.
     """
     m = R_lb.shape[1]
     mu    = R_lb.mean(axis=0)
@@ -140,9 +148,9 @@ def w_mvo(R_lb, delta=20.0, ridge=1e-4, x_max=1.0, **kwargs):
     return _solve_long_only(obj, x, m, x_max)
 
 
-# ──────────────────────────────────────────────
-# 벤치마크 백테스트 (DFL 결과 구조와 동일)
-# ──────────────────────────────────────────────
+# ----------------------------------------------
+# benchmark backtests (same result structure as the DFL runs)
+# ----------------------------------------------
 
 def backtest_benchmark(full_np, folds, weight_fn, LOOKBACK, HORIZON, REBAL,
                        stock_names=None, weight_kwargs=None):
@@ -150,9 +158,10 @@ def backtest_benchmark(full_np, folds, weight_fn, LOOKBACK, HORIZON, REBAL,
     Returns
     -------
     results : list of dict
-        각 dict: window, date_idx, weights, w_real, R_real,
-                 M_real(=DFL식 상대낙폭), MDD_abs(uncompounded 절대낙폭), Sharpe
-    n_infeasible : int   (최적화 실패 횟수)
+        each dict: window, date_idx, weights, w_real, R_real,
+                   M_real (relative drawdown, DFL definition),
+                   MDD_abs (uncompounded absolute drawdown), Sharpe
+    n_infeasible : int   number of optimization failures
     """
     weight_kwargs = weight_kwargs or {}
     m = full_np.shape[1]
@@ -169,24 +178,24 @@ def backtest_benchmark(full_np, folds, weight_fn, LOOKBACK, HORIZON, REBAL,
             if not feasible:
                 n_infeasible += 1
 
-            # 실현: 첫 REBAL일만 보유
+            # realised: only the first REBAL days are held
             R_hold = full_np[i : i + REBAL]              # (REBAL, m)
-            p_daily = R_hold @ w                          # (REBAL,) 일별 포트폴리오 수익
-            w_real  = np.cumsum(p_daily)                  # uncompounded 누적 경로
+            p_daily = R_hold @ w                          # (REBAL,) daily portfolio returns
+            w_real  = np.cumsum(p_daily)                  # uncompounded cumulative path
 
             R_real = w_real[-1]
 
-            # DFL식 상대 낙폭 (기존 비교용)
+            # relative drawdown, DFL definition (kept for comparability)
             pv_w   = 1.0 + w_real
             rmax_w = np.maximum.accumulate(pv_w)
             M_real = float(np.max((rmax_w - pv_w) / (rmax_w + 1e-10)))
 
-            # uncompounded 절대 낙폭 (Reviewer #1, #2)
+            # uncompounded absolute drawdown (reviewer comments #1 and #2)
             cum      = np.concatenate([[0.0], w_real])
             run_max  = np.maximum.accumulate(cum)
             MDD_abs  = float(np.max(run_max - cum))
 
-            # Sharpe (일별 실현 기준)
+            # Sharpe on realised daily returns
             sig = p_daily.std()
             sharpe = float(p_daily.mean() / (sig + 1e-12))
 
@@ -204,16 +213,16 @@ def backtest_benchmark(full_np, folds, weight_fn, LOOKBACK, HORIZON, REBAL,
     return results, n_infeasible
 
 
-# ──────────────────────────────────────────────
-# drift 반영 turnover (Reviewer #21)
-# ──────────────────────────────────────────────
+# ----------------------------------------------
+# drift-aware turnover (reviewer comment #21)
+# ----------------------------------------------
 
 def build_bench_store(full_np, folds, stock_names, LOOKBACK_LIST,
                       HORIZON, REBAL, delta=20.0, x_max=1.0, verbose=True):
-    """EW / GMV / hist-MVO 벤치마크를 한 번에 백테스트해 dict 로 반환.
+    """Backtest the EW / GMV / hist-MVO benchmarks together and return a dict.
 
-    x_max 를 한 곳에서만 지정하면 GMV·hist-MVO 양쪽에 동일하게 적용된다
-    (EW 는 1/m 이라 상한과 무관). 개별 호출 시 x_max 를 빠뜨리는 실수를 막는다.
+    Setting x_max once applies it to both GMV and hist-MVO (EW is 1/m and is
+    unaffected by the cap), which avoids forgetting x_max on an individual call.
 
     Returns
     -------
@@ -236,21 +245,22 @@ def build_bench_store(full_np, folds, stock_names, LOOKBACK_LIST,
 
     if verbose:
         mx = {k: max(float(np.max(x["weights"])) for x in v) for k, v in store.items()}
-        print(f"  벤치마크 {len(store)}종  x_max={x_max}  윈도우 {len(store['EW'])}개")
+        print(f"  {len(store)} benchmarks, x_max={x_max}, {len(store['EW'])} windows")
         for k, v in mx.items():
-            flag = "  ← 상한 위반!" if v > x_max + 1e-6 else ""
-            print(f"    {k:<20} 최대비중 {v:.4f}{flag}")
+            flag = "  <-- cap violated" if v > x_max + 1e-6 else ""
+            print(f"    {k:<20} max weight {v:.4f}{flag}")
     return store, infeas
 
 
 def compute_turnover(results, full_np, REBAL, one_way=True):
     """
-    리밸런싱 직전 실현수익으로 표류한 weight 기준 turnover.
+    Turnover measured against the weights as they drifted with realised returns
+    since the previous rebalancing date.
 
-    각 리밸런싱 k (>=2):
-      gross_j   = Π_{d=0}^{REBAL-1} (1 + r_{i_{k-1}+d, j})     자산별 보유기간 총수익
-      w_drift_j = w_{k-1,j} gross_j / Σ_l w_{k-1,l} gross_l     표류 weight
-      turnover_k = Σ_j |w_{k,j} - w_drift_j|                    one-way L1
+    For each rebalance k (>= 2):
+      gross_j    = prod_{d=0}^{REBAL-1} (1 + r_{i_{k-1}+d, j})   per-asset gross return
+      w_drift_j  = w_{k-1,j} gross_j / sum_l w_{k-1,l} gross_l   drifted weight
+      turnover_k = sum_j |w_{k,j} - w_drift_j|                   one-way L1
 
     Returns
     -------
@@ -264,7 +274,7 @@ def compute_turnover(results, full_np, REBAL, one_way=True):
         w_curr = np.array(results[k]["weights"], dtype=float)
 
         R_hold = full_np[i_prev : i_prev + REBAL]         # (REBAL, m)
-        gross  = np.prod(1.0 + R_hold, axis=0)            # (m,) 자산별 총수익
+        gross  = np.prod(1.0 + R_hold, axis=0)            # (m,) per-asset gross return
         drifted = w_prev * gross
         s = drifted.sum()
         w_drift = drifted / s if s > 0 else w_prev
@@ -280,9 +290,9 @@ def compute_turnover(results, full_np, REBAL, one_way=True):
     }
 
 
-# ──────────────────────────────────────────────
+# ----------------------------------------------
 # infeasibility rate (Reviewer #4)
-# ──────────────────────────────────────────────
+# ----------------------------------------------
 
 def infeasibility_rate(n_infeasible, results):
     n = len(results)

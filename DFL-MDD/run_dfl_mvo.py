@@ -1,29 +1,30 @@
 """
 run_dfl_mvo.py
-──────────────
-DFL-MVO(drawdown 제약 제거 ablation) 학습을 (delta, lambda) 하나만 담당하는
-단일 프로세스로 실행한다. 조합별로 프로세스를 띄우면 코어를 병렬로 쓸 수 있다.
+--------------
+Run DFL-MVO training -- the ablation with the drawdown constraint removed -- in a
+single process that owns one (delta, lambda) pair. Launching one process per pair
+puts the cores to work in parallel.
 
-DFL-MDD와 달리 n1이 없으므로 config는 LOOKBACK 뿐이다.
+Unlike DFL-MDD there is no n1, so LOOKBACK is the only remaining config axis.
 
-사용법
+Usage
 ------
-  # lambda 4개 병렬 (delta 하나)
+  # four lambdas in parallel, for a single delta
   python run_dfl_mvo.py --data 10 --delta 20 --lam 0.3 &
   python run_dfl_mvo.py --data 10 --delta 20 --lam 0.5 &
   python run_dfl_mvo.py --data 10 --delta 20 --lam 0.7 &
   python run_dfl_mvo.py --data 10 --delta 20 --lam 1.0 &
   wait
 
-  # delta sweep까지 병렬로 (코어가 넉넉할 때)
+  # the delta sweep in parallel too, when cores allow
   for D in 20 50 100; do for L in 0.3 0.5 0.7 1.0; do
       python run_dfl_mvo.py --data 10 --delta $D --lam $L > logs/mvo_d${D}_l${L}.txt 2>&1 &
   done; done
 
-체크포인트는 노트북과 동일한 형식이므로 끝난 뒤 그대로 로드하면 된다.
+Checkpoints use the same format as the notebooks and load directly once finished.
 """
 
-# ── BLAS 스레드 고정 (import 전에 설정) ──
+# Pin BLAS to one thread; this must happen before the numeric libraries load.
 import os
 for _v in ("OMP_NUM_THREADS", "MKL_NUM_THREADS", "OPENBLAS_NUM_THREADS",
            "NUMEXPR_NUM_THREADS", "VECLIB_MAXIMUM_THREADS"):
@@ -35,7 +36,7 @@ import random
 import time
 import warnings
 
-# cvxpylayers 내부 CSR 텐서 beta 경고 억제 (동작·결과에는 영향 없음)
+# silence the CSR-tensor beta warning from inside cvxpylayers (no effect on results)
 warnings.filterwarnings("ignore", message=".*Sparse CSR tensor support.*")
 
 import numpy as np
@@ -45,9 +46,9 @@ import torch
 torch.set_num_threads(1)
 
 
-# ══════════════════════════════════════════════════════════
-# 인자
-# ══════════════════════════════════════════════════════════
+# ==========================================================
+# arguments
+# ==========================================================
 ap = argparse.ArgumentParser()
 ap.add_argument("--data",    default="10", choices=["10", "30"])
 ap.add_argument("--lam",     type=float, required=True)
@@ -55,21 +56,22 @@ ap.add_argument("--delta",   type=float, default=20.0)
 ap.add_argument("--horizon", type=int,   default=126)
 ap.add_argument("--solver",  default="CLARABEL")
 ap.add_argument("--xmax", type=float, default=1.0,
-                help="자산별 비중 상한 (0<xmax<=1). 1.0이 아니면 체크포인트 "
-                     "이름에 _xm 태그가 붙어 기존 결과와 분리된다")
+                help="per-asset weight cap (0 < xmax <= 1). Anything other than 1.0 adds an "
+                     "_xm tag to the checkpoint name, keeping it separate from the "
+                     "uncapped results")
 ap.add_argument("--lb", type=int, nargs="+", default=None,
-                help="LOOKBACK 목록. 지정 시 체크포인트 이름에 _LB 태그가 붙는다")
+                help="LOOKBACK values; when given, an _LB tag is added to the checkpoint name")
 args = ap.parse_args()
 
 LAM_VAL   = args.lam
 SOLVER    = args.solver
 DELTA_VAL = int(args.delta) if float(args.delta).is_integer() else args.delta
 
-TAG = f"[MVO h{args.horizon} d{DELTA_VAL} λ={LAM_VAL}]"
+TAG = f"[MVO h{args.horizon} d{DELTA_VAL} lam={LAM_VAL}]"
 _T0 = time.time()
 
 def _el():
-    """시작 이후 경과시간 H:MM:SS."""
+    """Elapsed time since start, as H:MM:SS."""
     s = int(time.time() - _T0)
     return f"{s // 3600}:{(s % 3600) // 60:02d}:{s % 60:02d}"
 
@@ -77,9 +79,9 @@ def log(msg=""):
     print(f"[{time.strftime('%H:%M:%S')} +{_el()}] {TAG} {msg}", flush=True)
 
 
-# ══════════════════════════════════════════════════════════
-# 데이터 (노트북과 동일)
-# ══════════════════════════════════════════════════════════
+# ==========================================================
+# data loading (identical to the notebooks)
+# ==========================================================
 inds = pd.read_csv(f"csv/{args.data}_industry.csv")
 inds["Date"] = pd.to_datetime(inds["Date"])
 inds = inds.set_index("Date").sort_index()
@@ -103,7 +105,7 @@ LR         = 1e-4
 PATIENCE   = 20
 
 VAL_YEARS, TEST_YEARS, N_FOLDS = 5, 1, 8
-LOOKBACK_LIST = args.lb if args.lb else [252, 504]   # ★ DFL-MVO는 n1 없음
+LOOKBACK_LIST = args.lb if args.lb else [252, 504]   # DFL-MVO has no n1
 _LBTAG        = f"_LB{'-'.join(map(str, LOOKBACK_LIST))}" if args.lb else ""
 _XMTAG        = "" if args.xmax >= 1.0 else f"_xm{args.xmax:g}"
 
@@ -133,14 +135,15 @@ is_std  = full_np[:init_train_end].std(axis=0)
 
 
 class WindowSet:
-    """(z, r) 샘플 집합. run_dfl_mdd.WindowSet과 동일.
+    """A set of (z, r) samples; identical to run_dfl_mdd.WindowSet.
 
-    리스트 대신 연속 배열 Z/R 하나로 보관한다. 기존 구현은 float64 리스트 →
-    np.array float64 복사 → float32 텐서로 같은 데이터를 3중으로 들고 있어
-    원소당 12바이트를 상시 점유했다. float32로 한 번만 담아 torch.from_numpy로
-    무복사 변환하면 4바이트다.
+    The samples are held as two contiguous arrays Z and R rather than as a list.
+    The earlier implementation kept the same data three times over -- a float64
+    list, a float64 np.array copy, then a float32 tensor -- costing 12 bytes per
+    element. Storing float32 once and wrapping it with torch.from_numpy costs 4.
 
-    리스트처럼 len/인덱싱/슬라이싱/순회가 되므로 호출부는 그대로 쓴다.
+    It supports len, indexing, slicing and iteration like a list, so call sites are
+    unchanged.
     """
     __slots__ = ("Z", "R")
 
@@ -162,10 +165,11 @@ class WindowSet:
 
 def make_windows(data, lookback, horizon, start, end, dtype=np.float32):
     """
-    dtype=float32 : 학습/검증용. 어차피 float32 텐서가 되므로 값은 동일하고
-                    메모리만 1/3이 된다.
-    dtype=float64 : 백테스트용. backtest_dfl_mvo가 z를 float64로 역정규화해
-                    Sigma를 추정하므로 기존 수치를 그대로 재현하려면 필요하다.
+    dtype=float32 : for training and validation. The data becomes a float32 tensor
+                    anyway, so the values are identical and memory drops to a third.
+    dtype=float64 : for the backtest. backtest_dfl_mvo undoes the standardisation in
+                    float64 to estimate Sigma, so float64 is needed to reproduce the
+                    existing numbers exactly.
     """
     ts = range(max(start, lookback), end - horizon + 1)
     m  = data.shape[1]
@@ -173,15 +177,15 @@ def make_windows(data, lookback, horizon, start, end, dtype=np.float32):
     R  = np.empty((len(ts), horizon, m),   dtype=dtype)
     for i, t in enumerate(ts):
         z_raw  = data[t - lookback:t]
-        z_norm = (z_raw - is_mean) / (is_std + 1e-8)   # 정규화는 float64로 계산
-        Z[i]   = z_norm.ravel()                        # 마지막에만 캐스팅
+        z_norm = (z_raw - is_mean) / (is_std + 1e-8)   # standardise in float64
+        Z[i]   = z_norm.ravel()                        # cast only at the end
         R[i]   = data[t:t + horizon]
     return WindowSet(Z, R)
 
 
-# ══════════════════════════════════════════════════════════
-# 학습
-# ══════════════════════════════════════════════════════════
+# ==========================================================
+# training
+# ==========================================================
 from dfl_mdd import PredictionModel
 from dfl_mvo import build_mvo_layer, train_dfl_mvo, backtest_dfl_mvo
 
@@ -192,10 +196,10 @@ ckpt_path = os.path.join(
     f"dfl_mvo_{N_STOCKS}_inds_h{HORIZON}{_XMTAG}{_LBTAG}"
     f"_d{DELTA_VAL}_l{LAM_VAL}_{SOLVER}.pkl")
 
-log(f"데이터 {args.data} industries ({N_STOCKS}개 자산, {len(full_np)}일)")
+log(f"data: {args.data} industries ({N_STOCKS} assets, {len(full_np)} days)")
 log(f"HORIZON={HORIZON}, solver={SOLVER}, delta={DELTA_VAL}, "
-    f"LOOKBACK {LOOKBACK_LIST} × fold {N_FOLDS}개")
-log(f"체크포인트: {ckpt_path}")
+    f"LOOKBACK {LOOKBACK_LIST} x {N_FOLDS} folds")
+log(f"checkpoint: {ckpt_path}")
 
 if os.path.exists(ckpt_path):
     with open(ckpt_path, "rb") as f:
@@ -203,7 +207,7 @@ if os.path.exists(ckpt_path):
     fold_results_map = ck["fold_results_map"]
     infeas_map       = ck.get("infeas_map", {lb: [] for lb in LOOKBACK_LIST})
     start_fold       = ck["completed_fold"] + 1
-    log(f"체크포인트 로드: fold {ck['completed_fold']}까지 완료")
+    log(f"checkpoint loaded: complete through fold {ck['completed_fold']}")
 else:
     fold_results_map = {lb: [] for lb in LOOKBACK_LIST}
     infeas_map       = {lb: [] for lb in LOOKBACK_LIST}
@@ -214,10 +218,10 @@ t_start = time.time()
 for fold_info in folds:
     fold_id = fold_info["fold"]
     if fold_id < start_fold:
-        log(f"fold {fold_id} 스킵")
+        log(f"fold {fold_id} skipped")
         continue
 
-    log(f"── fold {fold_id} (test={fold_info['test_year']}) ──")
+    log(f"-- fold {fold_id} (test={fold_info['test_year']}) --")
     torch.manual_seed(42); np.random.seed(42); random.seed(42)
 
     for LOOKBACK in LOOKBACK_LIST:
@@ -234,9 +238,9 @@ for fold_info in folds:
                                      end=fold_info["test_end_idx"],
                                      dtype=np.float64)[::REBAL]
 
-        # HORIZON이 크면 뒤쪽 fold에 리밸런싱 윈도우가 없을 수 있음
+        # With a long HORIZON the later folds can have no rebalancing window at all
         if len(rebal_samples) == 0:
-            log(f"   LB={LOOKBACK}  리밸런싱 윈도우 0개 — 건너뜀")
+            log(f"   LB={LOOKBACK}: no rebalancing windows, skipped")
             continue
 
         train_dates = [(str(full_dates[LOOKBACK + i])[:10],
@@ -276,14 +280,14 @@ for fold_info in folds:
                      "lam_val"         : LAM_VAL,
                      "horizon"         : HORIZON,
                      "solver"          : SOLVER}, f)
-    log(f"체크포인트 저장 (fold {fold_id}) — 누적 {time.time() - t_start:.0f}s")
+    log(f"checkpoint saved (fold {fold_id}) -- elapsed {time.time() - t_start:.0f}s")
 
-# ── 요약 ──
+# ---- summary ----
 n_inf = sum(e["n_infeasible"] for v in infeas_map.values() for e in v)
 n_win = sum(e["n_windows"]    for v in infeas_map.values() for e in v)
 log()
-log(f"완료 — 총 {time.time() - t_start:.0f}초")
+log(f"done -- {time.time() - t_start:.0f}s total")
 if n_win:
-    log(f"윈도우 {n_win}  fallback {n_inf} ({n_inf / n_win:.1%})")
+    log(f"windows {n_win}  fallbacks {n_inf} ({n_inf / n_win:.1%})")
 else:
-    log("백테스트 윈도우 0개 — 요약 없음")
+    log("no backtest windows, nothing to summarise")

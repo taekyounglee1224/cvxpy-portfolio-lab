@@ -1,17 +1,20 @@
 """
 dfl_mvo.py
-──────────
-DFL-MVO: end-to-end mean-variance 포트폴리오 (drawdown 제약 없음).
+----------
+DFL-MVO: end-to-end mean-variance portfolio, without the drawdown constraint.
 
-DFL-MDD와의 유일한 차이:
-  - optimization layer에서 drawdown 제약(보조변수 u, n1) 전부 제거
-    → 순수 MVO:  max ŷ_N·x − (δ/2)‖Lᵀx‖²   s.t.  Σx=1,  x_min≤x≤x_max
-  - task loss는 DFL-MDD와 동일:  L = λ(−Sharpe) + (1−λ)·MDD_real
-    (하드 제약만 제거 → Reviewer #9 ablation: "DFL without the hard drawdown constraint")
+The only difference from DFL-MDD:
+  - the drawdown constraints (auxiliary variable u, budget n1) are removed from the
+    optimization layer, leaving plain MVO:
+        max  yhat_N . x - (delta/2)||L^T x||^2   s.t.  sum(x)=1,  x_min <= x <= x_max
+  - the task loss is unchanged:  L = lam*(-Sharpe) + (1-lam)*MDD_real
+    Only the hard constraint is dropped, which is the ablation reviewer #9 asks for:
+    "DFL without the hard drawdown constraint".
 
-나머지(예측모델·loss·학습루프·지표)는 dfl_mdd에서 재사용.
+Everything else (prediction model, loss, training loop, metrics) is reused from
+dfl_mdd.
 
-사용법
+Usage
 ------
   import importlib, dfl_mvo
   importlib.reload(dfl_mvo)
@@ -26,7 +29,7 @@ import warnings
 from tqdm.auto import tqdm
 from cvxpylayers.torch import CvxpyLayer
 
-# 공유 컴포넌트 재사용
+# reuse the shared components
 from dfl_mdd import (
     PredictionModel,
     compute_cumulative_path,
@@ -47,14 +50,14 @@ __all__ = [
 
 
 # =============================================================================
-# MVO Optimization Layer  (drawdown 제약 없음)
+# MVO optimization layer (no drawdown constraint)
 # =============================================================================
 def build_mvo_layer(N, m, gamma=0.0, delta=0.0):
     """
-    순수 mean-variance layer (long-only, full-investment).
-      max  ŷ_N·x − (δ/2)‖Lᵀx‖² − γ‖x‖²
-      s.t. Σx = 1,  x_min ≤ x ≤ x_max
-    보조변수 u·drawdown 제약 없음.
+    Plain mean-variance layer (long-only, fully invested).
+      max  yhat_N.x - (delta/2)||L^Tx||^2 - gamma||x||^2
+      s.t. sumx = 1,  x_min <= x <= x_max
+    No auxiliary variable u and no drawdown constraint.
     """
     x     = cp.Variable(m, name="x")
     Y_hat = cp.Parameter((N, m), name="Y_hat")
@@ -78,7 +81,7 @@ def build_mvo_layer(N, m, gamma=0.0, delta=0.0):
 
 
 # =============================================================================
-# Solve  (n1 없음)
+# solve (no n1)
 # =============================================================================
 def solve_portfolio_mvo(y_hat, opt_layer, x_min, x_max,
                         Sigma_list=None, infeas_counter=None,
@@ -101,7 +104,7 @@ def solve_portfolio_mvo(y_hat, opt_layer, x_min, x_max,
                     y_hat[b].double(), x_min_val, x_max_val,
                     solver_args={"solve_method": solve_method},
                 )
-            # 예외 없이 무효해(sum(x) != 1)를 반환하는 경우 탐지
+            # catch an invalid solution (sum(x) != 1) returned without an exception
             _s = float(x_star_b.detach().sum())
             fail_reason = None if abs(_s - 1.0) <= 1e-4 else f"invalid_sum={_s:.2e}"
         except Exception as e:
@@ -119,7 +122,7 @@ def solve_portfolio_mvo(y_hat, opt_layer, x_min, x_max,
 
 
 # =============================================================================
-# Forward pass  (DFL-MDD와 동일, solve만 MVO)
+# forward pass (identical to DFL-MDD; only the solve differs)
 # =============================================================================
 def forward_pass_mvo(z, r_real, pred_model, opt_layer, C, d, x_min, x_max, lam,
                      is_mean=None, is_std=None, delta=0.0,
@@ -156,13 +159,14 @@ def forward_pass_mvo(z, r_real, pred_model, opt_layer, C, d, x_min, x_max, lam,
 
 
 # =============================================================================
-# Train  (train_dfl_mdd과 동일 구조, forward만 MVO / n1 없음)
+# train (same structure as train_dfl_mdd; MVO forward pass, no n1)
 # =============================================================================
 def _stack_f32(samples, field):
-    """샘플 집합을 (n, ...) float32 텐서로. dfl_mdd._stack_f32와 동일 로직.
+    """Stack a sample set into an (n, ...) float32 tensor; same logic as
+    dfl_mdd._stack_f32.
 
-    run_dfl_mvo.WindowSet처럼 연속 float32 배열(.Z/.R)이면 torch.from_numpy로
-    복사 없이 감싼다. 그 외(리스트 등)는 기존과 동일하게 스택 후 캐스팅한다.
+    Contiguous float32 arrays (.Z / .R), as run_dfl_mvo.WindowSet holds, are wrapped
+    with torch.from_numpy without copying. Anything else is stacked and cast.
     """
     arr = getattr(samples, ("Z", "R")[field], None)
     if arr is not None and arr.dtype == np.float32:
@@ -192,7 +196,7 @@ def train_dfl_mvo(pred_model, opt_layer, train_samples, val_samples=None,
     no_improve     = 0
     inaccurate_log = []
 
-    print("\n── DFL-MVO Training (Val Early Stopping + LR Scheduler) ──")
+    print("\n-- DFL-MVO Training (Val Early Stopping + LR Scheduler) --")
 
     for epoch in range(epochs):
         pred_model.train()
@@ -275,15 +279,15 @@ def train_dfl_mvo(pred_model, opt_layer, train_samples, val_samples=None,
         pred_model.load_state_dict(best_state)
 
     if inaccurate_log:
-        print(f"\n  ⚠ Inaccurate 발생: 총 {len(inaccurate_log)}회")
+        print(f"\n  inaccurate solves: {len(inaccurate_log)} in total")
     else:
-        print("\n  ✓ Inaccurate 없음")
+        print("\n  no inaccurate solves")
 
     return pred_model, inaccurate_log
 
 
 # =============================================================================
-# Backtest  (backtest_dfl_mdd과 동일, solve만 MVO / 3개 반환)
+# backtest (same as backtest_dfl_mdd; MVO solve, returns three values)
 # =============================================================================
 def backtest_dfl_mvo(pred_model, opt_layer, rebal_samples, N, d, C,
                      x_min=0.0, x_max=1.0,
@@ -294,7 +298,7 @@ def backtest_dfl_mvo(pred_model, opt_layer, rebal_samples, N, d, C,
     names    = stock_names if stock_names else [f"S{j+1}" for j in range(m)]
     results  = []
 
-    print("\n── Backtest : DFL-MVO ──")
+    print("\n-- Backtest : DFL-MVO --")
     print(f"{'Win':>4}  {'R_real':>8}  {'Sharpe':>8}  {'MDD(%)':>8}  {'Top-3 weights'}")
     print("-" * 75)
 
@@ -356,9 +360,9 @@ def backtest_dfl_mvo(pred_model, opt_layer, rebal_samples, N, d, C,
         print(f"  {i+1:3d}  {R_real:8.4f}  {sharpe_val:8.4f}  {M_real:8.4%}  n={n_active:2d}  {top3}")
 
     if bt_inaccurate_log:
-        print(f"\n  ⚠ Backtest Inaccurate: 총 {len(bt_inaccurate_log)}회")
+        print(f"\n  inaccurate solves during backtest: {len(bt_inaccurate_log)} in total")
     else:
-        print("\n  ✓ Backtest Inaccurate 없음")
+        print("\n  no inaccurate solves during backtest")
 
     n_win = len(results)
     n_inf = len(infeas_log)
@@ -368,8 +372,8 @@ def backtest_dfl_mvo(pred_model, opt_layer, rebal_samples, N, d, C,
         "rate":         (n_inf / n_win) if n_win else float("nan"),
     }
     if n_inf > 0:
-        print(f"\n  ⚠ Infeasible fallback: {n_inf}/{n_win} ({infeas_summary['rate']:.2%})")
+        print(f"\n  infeasible fallbacks: {n_inf}/{n_win} ({infeas_summary['rate']:.2%})")
     else:
-        print("\n  ✓ Infeasible 없음 (0%)")
+        print("\n  no infeasible fallbacks (0%)")
 
     return results, bt_inaccurate_log, infeas_summary

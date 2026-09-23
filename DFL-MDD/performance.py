@@ -1,18 +1,18 @@
 """
 performance.py
-──────────────
-백테스트 결과(results 리스트)로부터 포트폴리오 성과 지표를 계산·출력하는 모듈.
+--------------
+Compute and print portfolio performance metrics from a backtest result list.
 
-지표
+Metrics
 ----
-  Ann.Ret   : 연환산 수익률
-  Sharpe    : 연환산 샤프 지수  (rf=0 기준)
-  CVaR(5%)  : 5% 수준의 Conditional VaR  (일별 수익률 기준, 손실 크기로 표시)
-  MDD       : Maximum Drawdown  (전체 백테스트 기간 기준)
-  HHI       : 평균 Herfindahl-Hirschman Index  (포트폴리오 집중도)
+  Ann.Ret   : annualised return
+  Sharpe    : annualised Sharpe ratio (rf = 0)
+  CVaR(5%)  : conditional VaR at 5%, on daily returns, reported as a loss magnitude
+  MDD       : maximum drawdown over the whole backtest period
+  HHI       : mean Herfindahl-Hirschman index, a concentration measure
 
-사용법
-------
+Usage
+-----
   from performance import compute_performance, print_performance_table
 
   # all_results : [(results_list, label), ...]
@@ -33,18 +33,18 @@ __all__ = [
 ]
 
 
-# ──────────────────────────────────────────────
-# 내부 유틸
-# ──────────────────────────────────────────────
+# ----------------------------------------------
+# internal helpers
+# ----------------------------------------------
 
 def build_equity_curve(results):
     """
-    results : backtest_* 함수가 반환한 dict 리스트
-              각 dict에 'w_real' (ndarray, shape=(rebal,)) 키가 있어야 함.
+    results : list of dicts returned by a backtest_* function; every dict must
+              carry 'w_real' (ndarray of shape (rebal,)).
 
     Returns
     -------
-    equity : np.ndarray, shape=(T+1,)  — 시작값 1.0 기준 누적 포트폴리오 가치
+    equity : np.ndarray of shape (T+1,), cumulative portfolio value starting at 1.0
     """
     cum_pv = [1.0]
     for res in results:
@@ -72,15 +72,15 @@ def _sharpe(equity, rf=0.0):
 def _cvar(equity, alpha=0.05):
     """
     CVaR (Expected Shortfall) at alpha level.
-    일별 수익률의 하위 alpha 분위 이하 평균값.
-    손실 크기(양수)로 반환.
+    Mean of the daily returns at or below the alpha quantile,
+    returned as a positive loss magnitude.
     """
     rets = np.diff(equity) / (equity[:-1] + 1e-10)
     cutoff = np.quantile(rets, alpha)
     tail = rets[rets <= cutoff]
     if len(tail) == 0:
         return float("nan")
-    return float(-tail.mean())   # 손실 크기이므로 부호 반전
+    return float(-tail.mean())   # sign flipped so the result is a loss magnitude
 
 
 def _mdd(equity):
@@ -90,7 +90,7 @@ def _mdd(equity):
 
 
 def _calmar(equity):
-    # 표준 Calmar: 연환산 수익률(Ann.Ret) / MDD
+    # standard Calmar: annualised return / MDD
     ann_ret = _annualized_return(equity)
     mdd     = _mdd(equity)
     return float(ann_ret / (mdd + 1e-10))
@@ -98,8 +98,8 @@ def _calmar(equity):
 
 def _hhi(results):
     """
-    각 리밸런싱 윈도우의 HHI = sum(w_i^2) 를 평균.
-    완전 분산 시 1/m, 완전 집중 시 1.
+    Mean of HHI = sum(w_i^2) across rebalancing windows.
+    Equals 1/m when fully diversified and 1 when fully concentrated.
     """
     values = []
     for res in results:
@@ -110,19 +110,22 @@ def _hhi(results):
 
 def _mdd_uncompounded(results):
     """
-    Uncompounded(가법) 누적수익 경로 기준 절대 최대낙폭 (Reviewer #1).
+    Absolute maximum drawdown on the uncompounded (additive) cumulative path
+    (reviewer comment #1).
 
-    전체 테스트 기간의 일별 포트폴리오 수익을 이어붙여 산술 누적:
-        cum_t = Σ r_p,s  (s<=t)
-    낙폭은 상대비율이 아닌 절대 차이:
-        MDD_abs = max_t ( max_{s<=t} cum_s − cum_t )
+    Daily portfolio returns over the whole test period are accumulated
+    arithmetically:
+        cum_t = sum_{s<=t} r_p,s
+    The drawdown is an absolute difference rather than a ratio:
+        MDD_abs = max_t ( max_{s<=t} cum_s - cum_t )
 
-    최적화 모델(제약식)이 사용하는 drawdown 정의와 동일한 스케일.
+    This matches the scale of the drawdown definition used in the optimization
+    constraint.
     """
     daily = []
     for res in results:
-        w_real = np.asarray(res["w_real"], dtype=float)   # 윈도우 내 누적경로
-        # 윈도우 누적경로 → 일별 수익으로 환원 후 이어붙임
+        w_real = np.asarray(res["w_real"], dtype=float)   # cumulative path inside the window
+        # convert the window path back to daily returns and concatenate
         daily.append(np.diff(np.concatenate([[0.0], w_real])))
     if not daily:
         return float("nan")
@@ -134,14 +137,16 @@ def _mdd_uncompounded(results):
 
 def _turnover(results, full_np=None, REBAL=None, one_way=True):
     """
-    평균 turnover (Reviewer #21 / 교수 코멘트).
+    Mean turnover (reviewer comment #21).
 
-    full_np·REBAL 제공 시 drift 반영:
-      리밸런싱 직전 실현수익으로 표류한 실제 보유 weight 기준.
-        gross_j   = Π(1+r) over 직전 보유기간
-        w_drift_j = w_prev_j gross_j / Σ_l w_prev_l gross_l
-        turnover  = Σ_j |w_curr_j − w_drift_j|      (one-way)
-    미제공 시 타깃 weight 차분(drift 미반영).
+    When full_np and REBAL are supplied, drift is taken into account: turnover is
+    measured against the weights actually held after drifting with realised
+    returns since the previous rebalance.
+        gross_j   = prod(1+r) over the previous holding period
+        w_drift_j = w_prev_j gross_j / sum_l w_prev_l gross_l
+        turnover  = sum_j |w_curr_j - w_drift_j|      (one-way)
+    Without them, turnover is the plain difference of target weights, ignoring
+    drift.
     """
     use_drift = (full_np is not None) and (REBAL is not None)
     tos, prev_w, prev_idx = [], None, None
@@ -165,32 +170,35 @@ def _turnover(results, full_np=None, REBAL=None, one_way=True):
     return float(np.mean(tos)) if tos else float("nan")
 
 
-# ──────────────────────────────────────────────
-# Transaction Cost 유틸
-# ──────────────────────────────────────────────
+# ----------------------------------------------
+# transaction cost helpers
+# ----------------------------------------------
 
 def apply_tc(results, tc_rate=0.0, full_np=None, REBAL=None):
     """
-    Transaction cost 사후(post-hoc) 반영. (one-way)
+    Apply transaction cost post hoc (one-way).
 
-    turnover 정의 (Reviewer #21 / 교수 코멘트):
-      full_np·REBAL 제공 시 → drift 반영: 리밸런싱 직전 실현수익으로 표류한
-        실제 보유 weight(w_drift) 기준으로 turnover 계산.
-          gross_j   = Π (1 + r) over 직전 보유기간          (자산별 총수익)
-          w_drift_j = w_prev_j gross_j / Σ_l w_prev_l gross_l
-          turnover  = Σ_j |w_curr_j − w_drift_j|            (one-way)
-      미제공 시 → 기존 방식(타깃 weight 차분, drift 미반영) — 하위 호환.
+    Turnover definition (reviewer comment #21):
+      With full_np and REBAL, drift is included: turnover is computed against the
+      weights actually held (w_drift) after drifting with realised returns since
+      the previous rebalance.
+          gross_j   = prod(1 + r) over the previous holding period  (per-asset gross)
+          w_drift_j = w_prev_j gross_j / sum_l w_prev_l gross_l
+          turnover  = sum_j |w_curr_j - w_drift_j|                  (one-way)
+      Without them, the older definition is used (difference of target weights,
+      ignoring drift), for backward compatibility.
 
     Parameters
     ----------
-    results : backtest_* 반환 리스트  (각 dict에 'weights', 'w_real'; drift 시 'date_idx' 권장)
+    results : backtest_* return list; each dict needs 'weights' and 'w_real',
+              plus 'date_idx' when drift is used
     tc_rate : float
-    full_np : (T, m) 일별 수익률.  drift 반영에 필요.
-    REBAL   : int   보유일수.       drift 반영에 필요.
+    full_np : (T, m) daily returns, required for the drift-aware definition
+    REBAL   : int, holding period in days, required for the drift-aware definition
 
     Returns
     -------
-    adjusted : 동일 구조 리스트 (w_real만 TC 반영)
+    adjusted : list with the same structure, with transaction cost applied to w_real
     """
     if tc_rate == 0.0:
         return results
@@ -207,7 +215,7 @@ def apply_tc(results, tc_rate=0.0, full_np=None, REBAL=None):
 
         if prev_w is not None:
             if use_drift and (prev_idx is not None):
-                # 직전 리밸런싱 이후 보유기간 동안 표류
+                # drift over the holding period since the previous rebalance
                 R_hold  = full_np[prev_idx : prev_idx + REBAL]
                 gross   = np.prod(1.0 + R_hold, axis=0)
                 drifted = prev_w * gross
@@ -215,33 +223,35 @@ def apply_tc(results, tc_rate=0.0, full_np=None, REBAL=None):
                 w_drift = drifted / s if s > 0 else prev_w
                 turnover = float(np.sum(np.abs(w - w_drift)))
             else:
-                turnover = float(np.sum(np.abs(w - prev_w)))   # 기존(미반영)
+                turnover = float(np.sum(np.abs(w - prev_w)))   # older definition, ignoring drift
             tc = tc_rate * turnover
             w_real = (1.0 - tc) * (1.0 + w_real) - 1.0
 
         adjusted.append({**res, "w_real": w_real})
         prev_w   = w
-        prev_idx = res.get("date_idx")   # 벤치마크엔 있음; DFL엔 없을 수 있음
+        prev_idx = res.get("date_idx")   # present for benchmarks, may be missing for DFL
 
     return adjusted
 
 
-# ──────────────────────────────────────────────
-# 공개 API
-# ──────────────────────────────────────────────
+# ----------------------------------------------
+# public API
+# ----------------------------------------------
 
 def compute_performance(results, label="", full_np=None, REBAL=None):
     """
-    results : backtest_* 반환 리스트
-    label   : 전략 이름 (출력용)
-    full_np, REBAL : drift 반영 turnover 계산용 (Reviewer #21). 미제공 시 근사.
+    results : backtest_* return list
+    label   : strategy name, used in the printed output
+    full_np, REBAL : used for drift-aware turnover (reviewer comment #21);
+                     without them turnover is approximated
 
     Returns
     -------
     dict : { label, Ann.Ret, Sharpe, CVaR(5%), MDD, MDD_abs, Calmar, HHI, Turnover }
-      - MDD      : compounded wealth 기준 상대 낙폭
-      - MDD_abs  : uncompounded 누적수익 기준 절대 낙폭 (최적화 모델과 동일 정의)
-      - Turnover : 평균 one-way turnover (drift 반영 시 실제 거래량)
+      - MDD      : relative drawdown on compounded wealth
+      - MDD_abs  : absolute drawdown on uncompounded cumulative return
+                   (the definition used by the optimization model)
+      - Turnover : mean one-way turnover (actual traded amount when drift is used)
     """
     equity = build_equity_curve(results)
     return {
@@ -262,11 +272,11 @@ def print_performance_table(all_results, title=None, full_np=None, REBAL=None):
     Parameters
     ----------
     all_results : list of (results_list, label) tuples
-    title       : 출력 상단에 표시할 제목 (optional)
+    title       : optional heading printed above the table
 
     Returns
     -------
-    df : pd.DataFrame  (포맷 적용 전 수치값)
+    df : pd.DataFrame of the raw numeric values, before formatting
     """
     rows = []
     for results, label in all_results:
@@ -275,7 +285,7 @@ def print_performance_table(all_results, title=None, full_np=None, REBAL=None):
 
     df_raw = pd.DataFrame(rows).set_index("label")
 
-    # 포맷 적용 (표시용 복사본)
+    # formatted copy, for display only
     df_fmt = df_raw.copy()
     df_fmt["Ann.Ret"]   = df_raw["Ann.Ret"].map("{:+.2%}".format)
     df_fmt["Sharpe"]    = df_raw["Sharpe"].map("{:.3f}".format)
@@ -286,38 +296,39 @@ def print_performance_table(all_results, title=None, full_np=None, REBAL=None):
     df_fmt["HHI"]       = df_raw["HHI"].map("{:.4f}".format)
 
     if title:
-        print(f"\n{'─'*60}")
+        print(f"\n{'-'*60}")
         print(f"  {title}")
-        print(f"{'─'*60}")
+        print(f"{'-'*60}")
     print(df_fmt.to_string())
     print()
 
-    return df_raw   # 수치값 반환 (추가 분석용)
+    return df_raw   # numeric values, for further analysis
 
 
 def print_tc_performance_table(all_results,
                                 tc_rates=(0.0, 0.10, 0.20, 0.40),
                                 title=None, full_np=None, REBAL=None):
     """
-    TC rate별 성과 비교표를 한 번에 출력.
+    Print one performance table per transaction-cost rate.
 
     Parameters
     ----------
     all_results : list of (results_list, label) tuples
-                  drift TC를 쓰려면 각 results dict에 'date_idx' 필요
-                  (benchmarks.attach_date_idx로 DFL/PTO에 부착).
+                  drift-aware TC needs 'date_idx' in every results dict
+                  (attach it to DFL/PTO results with benchmarks.attach_date_idx).
     tc_rates    : iterable of float
-    title       : 출력 상단 제목 (optional)
-    full_np, REBAL : drift 반영 TC용 (Reviewer #21). 미제공 시 기존 방식.
+    title       : optional heading
+    full_np, REBAL : used for drift-aware TC (reviewer comment #21);
+                     without them the older definition is used
 
     Returns
     -------
     dict : { tc_rate: pd.DataFrame }
     """
     if title:
-        print(f"\n{'═'*70}")
-        print(f"  {title}  —  Transaction Cost 민감도 분석")
-        print(f"{'═'*70}")
+        print(f"\n{'='*70}")
+        print(f"  {title}  --  transaction cost sensitivity")
+        print(f"{'='*70}")
 
     dfs = {}
     for tc_rate in tc_rates:
@@ -337,7 +348,7 @@ def print_tc_performance_table(all_results,
         df_fmt["Turnover"]  = df_raw["Turnover"].map("{:.4f}".format)
         df_fmt["HHI"]       = df_raw["HHI"].map("{:.4f}".format)
 
-        print(f"\n  ── {tc_label} ──")
+        print(f"\n  -- {tc_label} --")
         print(df_fmt.to_string())
 
         dfs[tc_rate] = df_raw
@@ -347,7 +358,7 @@ def print_tc_performance_table(all_results,
 
 
 def _parse_lb_n1(label):
-    """label에서 (Lookback, n1) 추출. 없으면 None."""
+    """Extract (lookback, n1) from a label; None when absent."""
     lb, n1 = None, None
     if "LB=" in label:
         try:
@@ -372,8 +383,8 @@ def build_metrics_dataframe(dfl_results_store,
                              full_np=None,
                              REBAL=None):
     """
-    lambda별로 DataFrame을 만들고 CSV 저장.
-    각 CSV = 해당 lambda의 DFL-MDD 결과 + 전체 벤치마크.
+    Build one DataFrame per lambda and write it to CSV.
+    Each CSV holds the DFL-MDD results for that lambda plus every benchmark.
 
     Parameters
     ----------
@@ -381,24 +392,25 @@ def build_metrics_dataframe(dfl_results_store,
     all_results_pto_mdd : list of (results, label)
     all_results_mvo     : list of (results, label)
     tc_rate             : float  transaction cost rate (default 0.0)
-    save_dir            : str or None  저장 폴더 (예: "./csv")
-    N_STOCKS            : int or str  파일명 구분용 (예: 10, 30)
+    save_dir            : str or None, output directory (e.g. "./csv")
+    N_STOCKS            : int or str, used in the filename (e.g. 10, 30)
     bench_store         : dict or None  {label: results}
-                          EW/GMV/hist-MVO 등. label에서 모델명·LB 자동 파싱.
+                          EW / GMV / hist-MVO; the model name and LB are parsed
+                          from the label
 
     Returns
     -------
     dfs : dict  { lam_val: pd.DataFrame }
     """
 
-    # ── 벤치마크 rows 먼저 계산 (모든 lambda CSV에 공통 포함) ──
+    # ---- benchmark rows first; they appear in every lambda CSV ----
     benchmark_rows = []
 
     # EW / GMV / hist-MVO
     if bench_store is not None:
         for blabel, bres in bench_store.items():
             lb, _ = _parse_lb_n1(blabel)
-            model = blabel.split("(")[0].strip()   # "GMV (LB=252)" → "GMV"
+            model = blabel.split("(")[0].strip()   # "GMV (LB=252)" -> "GMV"
             perf = compute_performance(apply_tc(bres, tc_rate, full_np=full_np, REBAL=REBAL),
                                         full_np=full_np, REBAL=REBAL)
             benchmark_rows.append({
@@ -461,7 +473,7 @@ def build_metrics_dataframe(dfl_results_store,
             "HHI"      : perf["HHI"],
         })
 
-    # ── lambda별 DFL-MDD + 벤치마크 합쳐서 저장 ──
+    # ---- combine DFL-MDD and benchmarks per lambda, then save ----
     dfs = {}
 
     for (delta_val, lam_val), results_list in dfl_results_store.items():
@@ -498,6 +510,6 @@ def build_metrics_dataframe(dfl_results_store,
             fname = f"{N_STOCKS}_inds_lam{lam_val}{tc_suffix}.csv"
             fpath = os.path.join(save_dir, fname)
             df.to_csv(fpath, index=False)
-            print(f"  ✓ CSV 저장: {fpath}")
+            print(f"  saved: {fpath}")
 
     return dfs

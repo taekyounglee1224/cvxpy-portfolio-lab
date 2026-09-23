@@ -1,23 +1,24 @@
 """
 run_xmax_sweep.py
-─────────────────
-weight cap(x_max) 실험을 x_max 값마다 순차로, 각 값 안에서는 병렬로 실행한다.
+-----------------
+Run the weight-cap (x_max) experiment: one x_max at a time, parallel within each.
 
-흐름 (x_max 하나당)
-    1. DFL-MDD  shard 16개 (λ4 × n₁4)  — 동시 --jobs 개
-    2. merge_ckpt.py 로 λ별 통짜 체크포인트 생성
-    3. DFL-MVO  shard 4개 (λ4, δ=20)   — 동시 4개
-  → 끝나면 다음 x_max 로 이동
+Per x_max
+    1. DFL-MDD, 16 shards (4 lambda x 4 n1), --jobs at a time
+    2. merge_ckpt.py builds one checkpoint per lambda
+    3. DFL-MVO, 4 shards (4 lambda, delta=20), 4 at a time
+  then move on to the next x_max
 
-x_max=0.3 이 완전히 끝난 뒤 0.6 이 시작되므로, 0.6 이 도는 동안 0.3 결과로
-분석을 진행할 수 있다.
+Because x_max=0.3 finishes completely before 0.6 starts, the 0.3 results can be
+analysed while 0.6 is still running.
 
-사용법
+Usage
 ------
   python run_xmax_sweep.py --data 30 --horizon 126 --xmax 0.3 0.6 --jobs 16
   python run_xmax_sweep.py --data 30 --horizon 126 --xmax 0.3 0.6 --dry-run
 
-체크포인트 이름에 _xm 태그가 붙어 기존(x_max=1.0) 결과와 분리된다.
+Checkpoints carry an _xm tag, which keeps them separate from the uncapped
+(x_max=1.0) results.
     dfl_mdd_30_inds_h126_xm0.3_d20_l0.5_CLARABEL.pkl
 """
 
@@ -33,11 +34,11 @@ ap.add_argument("--horizon", type=int, default=126)
 ap.add_argument("--solver",  default="CLARABEL")
 ap.add_argument("--delta",   type=float, default=20.0)
 ap.add_argument("--xmax",    type=float, nargs="+", default=[0.3, 0.6],
-                help="순서대로 실행할 비중 상한 목록")
+                help="weight caps to run, in order")
 ap.add_argument("--jobs",    type=int, default=None,
-                help="DFL-MDD 동시 실행 수 (기본: 코어수-4, 최대 16)")
+                help="number of concurrent DFL-MDD jobs (default: cores-4, capped at 16)")
 ap.add_argument("--mvo-jobs", type=int, default=4)
-ap.add_argument("--skip-mvo", action="store_true", help="DFL-MVO 생략")
+ap.add_argument("--skip-mvo", action="store_true", help="skip the DFL-MVO stage")
 ap.add_argument("--python",  default=sys.executable)
 ap.add_argument("--log-dir", default="./logs")
 ap.add_argument("--dry-run", action="store_true")
@@ -56,44 +57,44 @@ def el():
 
 
 def run(desc, cmd):
-    """하위 명령을 블로킹 실행. 실패해도 다음 단계로 넘어가되 기록은 남긴다."""
-    print(f"\n[+{el()}] ▶ {desc}", flush=True)
+    """Run a subcommand and block. A failure is recorded but does not stop the sweep."""
+    print(f"\n[+{el()}] start  {desc}", flush=True)
     print(f"          {' '.join(cmd[1:])}", flush=True)
     if args.dry_run:
         return 0
     rc = subprocess.run(cmd, env=ENV).returncode
-    mark = "완료" if rc == 0 else f"실패(rc={rc})"
-    print(f"[+{el()}] ◀ {desc} — {mark}", flush=True)
+    mark = "ok" if rc == 0 else f"failed (rc={rc})"
+    print(f"[+{el()}] done   {desc} -- {mark}", flush=True)
     return rc
 
 
-print(f"x_max sweep 시작 — {args.data} inds, h{args.horizon}, "
-      f"x_max {args.xmax}, DFL-MDD 동시 {JOBS}개")
+print(f"x_max sweep starting -- {args.data} inds, h{args.horizon}, "
+      f"x_max {args.xmax}, {JOBS} concurrent DFL-MDD jobs")
 
 failed = []
 for xm in args.xmax:
     tag = f"x_max={xm:g}"
     print(f"\n{'=' * 70}\n  {tag}\n{'=' * 70}", flush=True)
 
-    # 1. DFL-MDD (λ4 × n₁4 = 16 shard)
-    rc = run(f"[{tag}] DFL-MDD 학습",
+    # 1. DFL-MDD (4 lambda x 4 n1 = 16 shards)
+    rc = run(f"[{tag}] DFL-MDD training",
              [args.python, "-u", "launch_dfl_mdd.py",
               "--data", args.data, "--horizon", str(args.horizon),
               "--solver", args.solver, "--jobs", str(JOBS),
               "--xmax", f"{xm:g}", "--python", args.python])
     if rc: failed.append(f"{tag} DFL-MDD")
 
-    # 2. 병합 — shard(_n1 태그) → λ별 통짜
-    rc = run(f"[{tag}] DFL-MDD 병합",
+    # 2. merge the _n1 shards into one checkpoint per lambda
+    rc = run(f"[{tag}] DFL-MDD merge",
              [args.python, "merge_ckpt.py",
               "--data", args.data, "--horizon", str(args.horizon),
               "--delta", str(DELTA), "--solver", args.solver,
               "--xmax", f"{xm:g}"])
     if rc: failed.append(f"{tag} merge")
 
-    # 3. DFL-MVO (λ4, δ 고정)
+    # 3. DFL-MVO (4 lambda, delta fixed)
     if not args.skip_mvo:
-        rc = run(f"[{tag}] DFL-MVO 학습",
+        rc = run(f"[{tag}] DFL-MVO training",
                  [args.python, "-u", "launch_dfl_mvo.py",
                   "--data", args.data, "--horizon", str(args.horizon),
                   "--delta", str(DELTA), "--solver", args.solver,
@@ -101,13 +102,13 @@ for xm in args.xmax:
                   "--xmax", f"{xm:g}", "--python", args.python])
         if rc: failed.append(f"{tag} DFL-MVO")
 
-    print(f"\n[+{el()}] ★ {tag} 전체 완료", flush=True)
+    print(f"\n[+{el()}] {tag} complete", flush=True)
 
 print(f"\n{'=' * 70}")
-print(f"sweep 종료 — 총 {el()}")
+print(f"sweep finished -- total {el()}")
 if failed:
-    print(f"실패 단계 {len(failed)}개: {failed}")
-    print("  → logs/ 확인 후 재실행하면 완료된 shard 는 건너뜁니다")
+    print(f"{len(failed)} stage(s) failed: {failed}")
+    print("  check logs/ and re-run; shards that finished are skipped")
 else:
-    print("모든 단계 정상 완료")
-    print(f"체크포인트: checkpoint/dfl_mdd_{args.data}_inds_h{args.horizon}_xm*_d{DELTA}_l*.pkl")
+    print("all stages completed")
+    print(f"checkpoints: checkpoint/dfl_mdd_{args.data}_inds_h{args.horizon}_xm*_d{DELTA}_l*.pkl")

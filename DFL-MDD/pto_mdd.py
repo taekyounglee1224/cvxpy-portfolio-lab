@@ -23,7 +23,7 @@ def train_pto_mdd(pred_model, train_samples, val_samples=None,
     best_state    = None
     no_improve    = 0
 
-    print("\n── PTO-MDD Training (MSE + Val Early Stopping) ──")
+    print("\n-- PTO-MDD Training (MSE + Val Early Stopping) --")
     pred_model.train()
     for epoch in range(epochs):
         perm    = torch.randperm(len(train_samples))
@@ -80,7 +80,7 @@ _SOLVER_MAP = {
 
 
 def _report_infeasible(infeas_log, n_windows):
-    """solver 실패 건수와 사유(prob.status)를 출력."""
+    """Print the number of solver failures and their prob.status reasons."""
     n = len(infeas_log)
     if n == 0:
         print("\n  \u2713 Fallback \uc5c6\uc74c (0%)")
@@ -92,7 +92,7 @@ def _report_infeasible(infeas_log, n_windows):
 
 
 def _cp_solver(name):
-    """문자열 solver 이름 → CVXPY solver 상수."""
+    """Map a solver name string to the CVXPY solver constant."""
     if not isinstance(name, str):
         return name
     return _SOLVER_MAP.get(name.upper(), cp.CLARABEL)
@@ -104,7 +104,7 @@ def _solve_mdd_lp(Y_hat, N, m, n1, C, x_min, x_max, gamma=0.0,
     x = cp.Variable(m)
     u = cp.Variable(N + 1)
 
-    # 목적함수: 예측 수익률 - risk term - L2 정규화
+    # objective: predicted return - risk term - L2 regularisation
     risk_term = (delta / 2) * cp.quad_form(x, Sigma) if (Sigma is not None and delta > 0) else 0
     objective = cp.Maximize(Y_hat[N - 1] @ x - risk_term - gamma * cp.sum_squares(x))
 
@@ -120,7 +120,7 @@ def _solve_mdd_lp(Y_hat, N, m, n1, C, x_min, x_max, gamma=0.0,
     if x.value is None:
         if infeas_counter is not None:
             infeas_counter.append(prob.status or "solve_failed")
-        # Fallback: x_max 클램핑 후 재정규화
+        # fallback: clamp at x_max, then renormalise
         w = np.clip(np.ones(m) / m, x_min, x_max)
         return w / w.sum()
     return x.value
@@ -134,13 +134,13 @@ def backtest_pto_mdd(pred_model, rebal_samples, N, d, C,
     lookback = rebal_samples[0][0].shape[0] // m
     names    = stock_names if stock_names else [f"S{j+1}" for j in range(m)]
     results  = []
-    cum_pv   = [1.0]   # 누적 portfolio value (이미지 MDD와 동일 기준)
+    cum_pv   = [1.0]   # cumulative portfolio value (same basis as the reported MDD)
 
-    print("\n── Backtest : PTO-MDD ──")
+    print("\n-- Backtest : PTO-MDD --")
     print(f"{'Win':>4}  {'R_real':>8}  {'MDD(%)':>8}  {'Top-3 weights'}")
     print("-" * 65)
 
-    infeas_log = []   # solver 실패 시 prob.status 기록
+    infeas_log = []   # prob.status recorded whenever the solver fails
 
     pred_model.eval()
     for i, (z_np, r_np) in enumerate(rebal_samples):
@@ -148,10 +148,10 @@ def backtest_pto_mdd(pred_model, rebal_samples, N, d, C,
         with torch.no_grad():
             r_hat = pred_model(z)[0].numpy()
 
-        # Sigma: lookback 실제 수익률 기반 (delta > 0일 때만 사용)
+        # Sigma from realised lookback returns (only used when delta > 0)
         Sigma = None
         if delta > 0 and is_mean is not None and is_std is not None:
-            z_raw = z_np.reshape(lookback, m) * is_std + is_mean  # 역정규화
+            z_raw = z_np.reshape(lookback, m) * is_std + is_mean  # undo standardisation
             Sigma = np.cov(z_raw.T) + 1e-4 * np.eye(m)
 
         Y_hat  = np.cumsum(r_hat, axis=0)
@@ -162,7 +162,7 @@ def backtest_pto_mdd(pred_model, rebal_samples, N, d, C,
         y_real = np.cumsum(r_np, axis=0)
         w_real = y_real @ w                             # (N,)
 
-        # HORIZON > REBAL인 경우 실제 보유 기간만큼 잘라서 사용
+        # when HORIZON > REBAL, truncate to the actual holding period
         if rebal is not None:
             w_real = w_real[:rebal]
 
@@ -171,7 +171,7 @@ def backtest_pto_mdd(pred_model, rebal_samples, N, d, C,
         base    = cum_pv[-1]
         cum_pv.extend((base * (1 + w_real)).tolist())
 
-        # 로그용: 해당 윈도우 내 per-window MDD
+        # for logging: per-window MDD inside this window
         pv_w    = 1 + w_real
         rmax_w  = np.maximum.accumulate(pv_w)
         M_real  = np.max((rmax_w - pv_w) / (rmax_w + 1e-10))

@@ -1,22 +1,22 @@
 """
 merge_ckpt.py
-─────────────
-run_dfl_mdd.py를 (lam, LOOKBACK, n1) shard로 쪼개 돌린 뒤,
-노트북이 읽는 통짜 체크포인트 하나로 합친다.
+-------------
+Merge the (lam, LOOKBACK, n1) shards produced by run_dfl_mdd.py into the single
+checkpoint per lambda that the notebooks read.
 
-  shard : dfl_mdd_30_inds_h126_n10.2_d20_l0.3_CLARABEL.pkl        (λ×n1 분할)
-          dfl_mdd_30_inds_h126_LB504_d20_l0.3_CLARABEL.pkl        (λ×LB 분할)
-          dfl_mdd_30_inds_h126_LB504_n10.2_d20_l0.3_CLARABEL.pkl  (λ×LB×n1 분할)
-  통합  : dfl_mdd_30_inds_h126_d20_l0.3_CLARABEL.pkl
-          (= 노트북 Cell 21이 찾는 이름)
+  shard : dfl_mdd_30_inds_h126_n10.2_d20_l0.3_CLARABEL.pkl        (lam x n1)
+          dfl_mdd_30_inds_h126_LB504_d20_l0.3_CLARABEL.pkl        (lam x LB)
+          dfl_mdd_30_inds_h126_LB504_n10.2_d20_l0.3_CLARABEL.pkl  (lam x LB x n1)
+  merged: dfl_mdd_30_inds_h126_d20_l0.3_CLARABEL.pkl
+          (the name the analysis notebooks look for)
 
---lb / --n1 에 없는 값이 붙은 체크포인트(예: _LB1260 같은 별도 실험)는
-자동으로 제외한다.
+Checkpoints tagged with a value outside --lb / --n1 (a separate experiment such
+as _LB1260) are excluded automatically.
 
-fold_results_map / infeas_map은 (LOOKBACK, n1) 키로 갈라져 있으므로 단순 병합이며,
-같은 키가 여러 shard에 중복되면 에러로 막는다.
+fold_results_map and infeas_map are keyed by (LOOKBACK, n1), so merging is a plain
+dict update; a key appearing in more than one shard raises an error.
 
-사용법
+Usage
 ------
   python merge_ckpt.py --data 30 --horizon 126
   python merge_ckpt.py --data 30 --horizon 252 --lam 0.3 0.5 --force
@@ -37,21 +37,22 @@ ap.add_argument("--solver",  default="CLARABEL")
 ap.add_argument("--lam",     type=float, nargs="+",
                 default=[0.3, 0.5, 0.7, 1.0])
 ap.add_argument("--lb", type=int, nargs="+", default=[252, 504],
-                help="합칠 LOOKBACK 값. 여기 없는 LB가 붙은 shard는 제외")
+                help="LOOKBACK values to merge; shards tagged with any other LB are skipped")
 ap.add_argument("--n1", type=float, nargs="+", default=[0.1, 0.2, 0.3, 0.4],
-                help="합칠 n1 값. 여기 없는 n1이 붙은 shard는 제외")
+                help="n1 values to merge; shards tagged with any other n1 are skipped")
 ap.add_argument("--xmax", type=float, default=1.0,
-                help="비중 상한. 1.0이 아니면 _xm 태그가 붙은 체크포인트를 대상으로 한다")
+                help="weight cap; anything other than 1.0 targets the _xm-tagged checkpoints")
 ap.add_argument("--out-tag", default=None,
-                help="병합 결과 파일명에 붙일 태그. 기본(auto): --lb 가 기본값"
-                     "(252 504)이 아니면 _LB<값> 을 붙인다. "
-                     "예) --lb 1260 → dfl_mdd_30_inds_h126_LB1260_d20_l0.3_CLARABEL.pkl "
-                     "(노트북의 _load('_LB1260') 과 동일). 빈 문자열이면 태그 없음.")
+                help="tag appended to the merged filename. With the default (auto) a "
+                     "_LB<value> tag is added whenever --lb differs from the "
+                     "default grid (252 504). For example --lb 1260 gives "
+                     "dfl_mdd_30_inds_h126_LB1260_d20_l0.3_CLARABEL.pkl, matching "
+                     "_load('_LB1260') in the notebooks. Pass an empty string for no tag.")
 ap.add_argument("--ckpt-dir", default="./checkpoint")
 ap.add_argument("--force",   action="store_true",
-                help="통합 파일이 이미 있어도 덮어쓴다")
+                help="overwrite the merged file if it already exists")
 ap.add_argument("--dry-run", action="store_true",
-                help="합치지 않고 무엇을 합칠지만 출력")
+                help="report what would be merged without writing anything")
 args = ap.parse_args()
 
 N_STOCKS = int(args.data)
@@ -59,7 +60,8 @@ DELTA    = int(args.delta) if float(args.delta).is_integer() else args.delta
 _XMTAG   = "" if args.xmax >= 1.0 else f"_xm{args.xmax:g}"
 BASE     = f"dfl_mdd_{N_STOCKS}_inds_h{args.horizon}{_XMTAG}"
 OK_LB    = {float(v) for v in args.lb}
-# 출력 태그: LB가 기본 그리드(252,504)와 다르면 파일명에 남겨 기존 결과와 분리
+# output tag: when LB differs from the default grid (252, 504), keep it in the
+# filename so the run stays separate from the existing results
 if args.out_tag is None:
     OUT_TAG = ("" if OK_LB == {252.0, 504.0}
                else f"_LB{'-'.join(str(int(v)) for v in sorted(args.lb))}")
@@ -69,14 +71,14 @@ OK_N1    = {float(v) for v in args.n1}
 TAG_RE   = re.compile(r"^(?:_LB([\d\-]+))?(?:_n1([\d.\-]+))?$")
 
 
-# LB 그리드가 기본(252,504)이 아니면, LB 태그가 없는 shard(=기본 그리드로 돌린 것)는
-# 대상이 아니다. 이 경우 _LB 태그를 필수로 요구한다.
+# When the LB grid is not the default (252, 504), an untagged shard belongs to the
+# default grid and is not a target, so the _LB tag becomes mandatory.
 LB_TAG_REQUIRED = OK_LB != {252.0, 504.0}
 
 
 def shard_tag_ok(mid):
-    """파일명 중간 태그가 --lb/--n1 범위 안의 shard 태그인지 판정."""
-    if not mid:                       # 태그 없음 = 통짜 파일
+    """Decide whether the middle filename tag is a shard tag within --lb / --n1."""
+    if not mid:                       # no tag means an already-merged file
         return False
     m = TAG_RE.match(mid)
     if not m or not (m.group(1) or m.group(2)):
@@ -100,13 +102,13 @@ for lam in args.lam:
         and shard_tag_ok(os.path.basename(sp)[len(BASE):-len(suffix)]))
 
     if not shards:
-        print(f"  - lam={lam}: shard 없음 ({os.path.basename(pattern)})")
+        print(f"  - lam={lam}: no shards ({os.path.basename(pattern)})")
         n_skip += 1
         continue
 
     if os.path.exists(out_path) and not args.force:
-        print(f"  ! lam={lam}: {os.path.basename(out_path)} 이미 존재 "
-              f"— --force 로 덮어쓰기")
+        print(f"  ! lam={lam}: {os.path.basename(out_path)} already exists; "
+              f"use --force to overwrite")
         n_skip += 1
         continue
 
@@ -118,8 +120,8 @@ for lam in args.lam:
         dup = set(ck["fold_results_map"]) & set(fold_results_map)
         if dup:
             raise SystemExit(
-                f"config 키 중복 {sorted(dup)} — {os.path.basename(sp)}\n"
-                f"shard 범위가 겹칩니다. 겹치는 체크포인트를 지우고 다시 돌리세요.")
+                f"duplicate config keys {sorted(dup)} in {os.path.basename(sp)}\n"
+                f"The shard ranges overlap. Delete the overlapping checkpoint and re-run.")
         fold_results_map.update(ck["fold_results_map"])
         infeas_map.update(ck.get("infeas_map", {}))
         completed.append(ck["completed_fold"])
@@ -129,12 +131,12 @@ for lam in args.lam:
 
     lo, hi = min(completed), max(completed)
     keys   = sorted(fold_results_map)
-    status = f"fold {lo}" + (f"~{hi} (미완 shard 있음)" if lo != hi else " 완료")
-    print(f"  ✓ lam={lam}: shard {len(shards)}개 → config {len(keys)}개, {status}")
+    status = f"fold {lo}" + (f"-{hi} (some shards unfinished)" if lo != hi else " complete")
+    print(f"  lam={lam}: {len(shards)} shards -> {len(keys)} configs, {status}")
     print(f"      {keys}")
     expected = len(OK_LB) * len(OK_N1)
     if len(keys) != expected:
-        print(f"      ! config {len(keys)}/{expected}개 — 누락된 shard가 있습니다")
+        print(f"      ! {len(keys)}/{expected} configs -- some shards are missing")
 
     if args.dry_run:
         continue
@@ -142,10 +144,10 @@ for lam in args.lam:
     with open(out_path, "wb") as f:
         pickle.dump({"fold_results_map": fold_results_map,
                      "infeas_map"      : infeas_map,
-                     "completed_fold"  : lo,   # 가장 덜 끝난 shard 기준
+                     "completed_fold"  : lo,   # based on the least advanced shard
                      **meta}, f)
-    print(f"      → {os.path.basename(out_path)}")
+    print(f"      -> {os.path.basename(out_path)}")
     n_ok += 1
 
-print(f"\n병합 {n_ok}개, 건너뜀 {n_skip}개"
+print(f"\nmerged {n_ok}, skipped {n_skip}"
       + ("  (dry-run)" if args.dry_run else ""))

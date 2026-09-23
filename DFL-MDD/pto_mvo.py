@@ -22,7 +22,7 @@ def train_pto_mvo(pred_model, train_samples, val_samples=None,
     best_state    = None
     no_improve    = 0
 
-    print("\n── PTO-MVO Training (MSE + Val Early Stopping) ──")
+    print("\n-- PTO-MVO Training (MSE + Val Early Stopping) --")
     pred_model.train()
     for epoch in range(epochs):
         perm    = torch.randperm(len(train_samples))
@@ -78,7 +78,7 @@ _SOLVER_MAP = {
 
 
 def _report_infeasible(infeas_log, n_windows):
-    """solver 실패 건수와 사유(prob.status)를 출력."""
+    """Print the number of solver failures and their prob.status reasons."""
     n = len(infeas_log)
     if n == 0:
         print("\n  \u2713 Fallback \uc5c6\uc74c (0%)")
@@ -90,7 +90,7 @@ def _report_infeasible(infeas_log, n_windows):
 
 
 def _cp_solver(name):
-    """문자열 solver 이름 → CVXPY solver 상수."""
+    """Map a solver name string to the CVXPY solver constant."""
     if not isinstance(name, str):
         return name
     return _SOLVER_MAP.get(name.upper(), cp.CLARABEL)
@@ -108,7 +108,7 @@ def _solve_mvo(mu, Sigma, delta, x_min, x_max, gamma=0.05,
     if x.value is None:
         if infeas_counter is not None:
             infeas_counter.append(prob.status or "solve_failed")
-        # Fallback: x_max 클램핑 후 재정규화 (pto_mdd fallback과 동일 방식)
+        # fallback: clamp at x_max, then renormalise (same as the pto_mdd fallback)
         w = np.clip(np.ones(m) / m, x_min, x_max)
         return w / w.sum()
     return x.value
@@ -121,13 +121,13 @@ def backtest_pto_mvo(pred_model, rebal_samples, N, d, C,
     lookback = rebal_samples[0][0].shape[0] // m
     names    = stock_names if stock_names else [f"S{j+1}" for j in range(m)]
     results  = []
-    cum_pv   = [1.0]   # 누적 portfolio value (이미지 MDD와 동일 기준)
+    cum_pv   = [1.0]   # cumulative portfolio value (same basis as the reported MDD)
 
-    print("\n── Backtest : PTO-MVO ──")
+    print("\n-- Backtest : PTO-MVO --")
     print(f"{'Win':>4}  {'R_real':>8}  {'MDD(%)':>8}  {'Top-3 weights'}")
     print("-" * 65)
 
-    infeas_log = []   # solver 실패 시 prob.status 기록
+    infeas_log = []   # prob.status recorded whenever the solver fails
 
     pred_model.eval()
     for i, (z_np, r_np) in enumerate(rebal_samples):
@@ -137,10 +137,10 @@ def backtest_pto_mvo(pred_model, rebal_samples, N, d, C,
 
         mu = r_hat.mean(axis=0)
 
-        # Sigma: lookback 실제 수익률로 추정 (표준 MVO)
-        # is_mean/is_std가 제공되면 역정규화 후 sample covariance 사용
+        # Sigma estimated from realised lookback returns (standard MVO)
+        # if is_mean/is_std are given, undo standardisation before the sample covariance
         if is_mean is not None and is_std is not None:
-            z_raw = z_np.reshape(lookback, m) * is_std + is_mean  # 역정규화
+            z_raw = z_np.reshape(lookback, m) * is_std + is_mean  # undo standardisation
             Sigma = np.cov(z_raw.T) + 1e-4 * np.eye(m)
         else:
             Sigma = np.cov(r_hat.T) + 1e-4 * np.eye(m)
@@ -152,7 +152,7 @@ def backtest_pto_mvo(pred_model, rebal_samples, N, d, C,
         y_real = np.cumsum(r_np, axis=0)
         w_real = y_real @ w
 
-        # HORIZON > REBAL인 경우 실제 보유 기간만큼 잘라서 사용
+        # when HORIZON > REBAL, truncate to the actual holding period
         if rebal is not None:
             w_real = w_real[:rebal]
 
@@ -161,7 +161,7 @@ def backtest_pto_mvo(pred_model, rebal_samples, N, d, C,
         base    = cum_pv[-1]
         cum_pv.extend((base * (1 + w_real)).tolist())
 
-        # 로그용: 해당 윈도우 내 per-window MDD
+        # for logging: per-window MDD inside this window
         pv_w    = 1 + w_real
         rmax_w  = np.maximum.accumulate(pv_w)
         M_real  = np.max((rmax_w - pv_w) / (rmax_w + 1e-10))

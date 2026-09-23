@@ -1,10 +1,10 @@
 """
 plot_utils.py
-─────────────
-포트폴리오 백테스트 결과 시각화 유틸리티.
+-------------
+Plotting helpers for portfolio backtest results.
 
-사용법
-------
+Usage
+-----
     import importlib
     import plot_utils
     importlib.reload(plot_utils)
@@ -27,7 +27,7 @@ def plot_multi_pnl(results_list, figsize=(14, 8), title="Cumulative PnL Comparis
                                    sharex=True)
     colors = plt.cm.tab10(np.linspace(0, 1, len(results_list)))
 
-    pv_store = []   # summary 계산용
+    pv_store = []   # collected for the summary table
 
     for (bt_results, label), color in zip(results_list, colors):
         pv = [1.0]
@@ -43,7 +43,7 @@ def plot_multi_pnl(results_list, figsize=(14, 8), title="Cumulative PnL Comparis
         max_dd      = drawdown.max()
         n_days      = len(pv) - 1
         ann_ret     = (pv[-1] ** (252 / n_days)) - 1 if n_days > 0 else float("nan")
-        calmar      = ann_ret / (max_dd + 1e-10)   # Ann.Ret / MDD (일관)
+        calmar      = ann_ret / (max_dd + 1e-10)   # Ann.Ret / MDD (consistent with performance.py)
 
         full_label = f"{label}  R:{total_ret:.1%}  MDD:{max_dd:.1%}  Cal:{calmar:.2f}"
         ax1.plot(np.arange(len(pv)), pv, color=color, linewidth=1.5, label=full_label)
@@ -64,10 +64,10 @@ def plot_multi_pnl(results_list, figsize=(14, 8), title="Cumulative PnL Comparis
     plt.tight_layout()
     plt.show()
 
-    # ── Summary Table ──
-    print(f"\n{'─'*75}")
+    # ---- summary table ----
+    print(f"\n{'-'*75}")
     print(f"  {'Label':<35}  {'Ann.Ret':>8}  {'Ann.Vol':>8}  {'MDD':>8}  {'Calmar':>7}")
-    print(f"{'─'*75}")
+    print(f"{'-'*75}")
     for label, pv in pv_store:
         daily_rets  = np.diff(pv) / (pv[:-1] + 1e-10)
         n_days      = len(daily_rets)
@@ -77,21 +77,21 @@ def plot_multi_pnl(results_list, figsize=(14, 8), title="Cumulative PnL Comparis
         max_dd      = ((running_max - pv) / (running_max + 1e-10)).max()
         calmar      = ann_ret / (max_dd + 1e-10)
         print(f"  {label:<35}  {ann_ret:>8.2%}  {ann_vol:>8.2%}  {max_dd:>8.2%}  {calmar:>7.2f}")
-    print(f"{'─'*75}")
+    print(f"{'-'*75}")
 
 
 def _fmt_n1_pct(label):
     """
-    legend용 라벨 정리:
-      - 'n1=0.1' → '10%'
-      - 'LB=252, ' / '(LB=252)' 등 Lookback 표기 제거
-    예) 'DFL-MDD (LB=252, n1=0.1)' → 'DFL-MDD (10%)'
-        'PTO-MVO (LB=252)'         → 'PTO-MVO'
+    Tidy a label for the legend:
+      - 'n1=0.1' becomes '10%'
+      - lookback markers such as 'LB=252, ' or '(LB=252)' are dropped
+    e.g. 'DFL-MDD (LB=252, n1=0.1)' -> 'DFL-MDD (10%)'
+         'PTO-MVO (LB=252)'         -> 'PTO-MVO'
     """
     s = re.sub(r"n1=([0-9.]+)",
                lambda m: f"{float(m.group(1)) * 100:.0f}%", label)
-    s = re.sub(r"LB=\d+\s*,\s*", "", s)   # 'LB=252, ' 제거
-    s = re.sub(r"\s*\(\s*LB=\d+\s*\)", "", s)  # ' (LB=252)' 단독 제거
+    s = re.sub(r"LB=\d+\s*,\s*", "", s)   # drop 'LB=252, '
+    s = re.sub(r"\s*\(\s*LB=\d+\s*\)", "", s)  # drop a standalone ' (LB=252)'
     s = re.sub(r"\(\s*", "(", s).replace("( ", "(")
     return s.strip()
 
@@ -101,7 +101,7 @@ def _plot_item(ax_pnl, ax_dd, res, lbl, color, linewidth, linestyle="-", x_vals=
     perf    = compute_performance(res)
     peak    = np.maximum.accumulate(eq)
     dd      = (eq - peak) / (peak + 1e-10)
-    calmar  = perf['Calmar']   # Ann.Ret / MDD (performance.py와 일관)
+    calmar  = perf['Calmar']   # Ann.Ret / MDD (consistent with performance.py)
     legend_lbl = (f"{_fmt_n1_pct(lbl)}  "
                   f"MDD={perf['MDD']:.1%}  "
                   f"Calmar={calmar:.2f}")
@@ -124,24 +124,24 @@ def plot_overall_comparison(dfl_results_store, all_results_pto_mdd, all_results_
     all_results_mvo      : list of (results, label)
     DELTA_LIST, LAM_LIST : hyperparameter lists
     LOOKBACK_LIST        : list of lookback values
-    N_STOCKS             : int  (파일명용)
-    PLOT_DIR             : str  (저장 경로)
+    N_STOCKS             : int   used in the output filename
+    PLOT_DIR             : str   output directory
     bench_store          : dict or None  {label: results}
-                           예: {"EW": res, "GMV (LB=252)": res,
+                           e.g. {"EW": res, "GMV (LB=252)": res,
                                 "hist-MVO (LB=252)": res, ...}
-                           EW는 LB 무관 → 모든 LB 그래프에 표시.
-                           그 외는 라벨의 'LB={lb}'로 필터링.
+                           EW does not depend on LB and appears on every LB panel;
+                           the others are matched on 'LB={lb}' in the label.
     """
     DFL_CMAP = plt.cm.Blues
     MDD_CMAP = plt.cm.Greens
     MVO_CMAP = plt.cm.Reds
 
-    # 벤치마크별 고정 스타일 (color, linestyle)
+    # fixed style per benchmark (color, linestyle)
     BENCH_STYLE = {
-        "DFL-MVO":  ("#00B3B3", (0, (3, 1, 1, 1))),  # 청록 dash-dot-dot
-        "EW":       ("black",   (0, (1, 1))),        # 검정 점선 (기준선)
-        "GMV":      ("#8000FF", "-."),               # 보라 dash-dot
-        "hist-MVO": ("#CC6600", (0, (5, 2))),        # 주황 dashed
+        "DFL-MVO":  ("#00B3B3", (0, (3, 1, 1, 1))),  # teal dash-dot-dot
+        "EW":       ("black",   (0, (1, 1))),        # black dotted (reference line)
+        "GMV":      ("#8000FF", "-."),               # purple dash-dot
+        "hist-MVO": ("#CC6600", (0, (5, 2))),        # orange dashed
     }
 
     def _bench_style(label):
@@ -155,16 +155,16 @@ def plot_overall_comparison(dfl_results_store, all_results_pto_mdd, all_results_
     for delta_val in DELTA_LIST:
         for lam_val in LAM_LIST:
             if (delta_val, lam_val) not in dfl_results_store:
-                print(f"  스킵: delta={delta_val}, lam={lam_val} (체크포인트 없음)")
+                print(f"  skipped: delta={delta_val}, lam={lam_val} (no checkpoint)")
                 continue
 
-            # TC 반영
+            # apply transaction cost
             raw_dfl = dfl_results_store[(delta_val, lam_val)]
             all_results_dfl_mdd = [(apply_tc(r, tc_rate), l) for r, l in raw_dfl]
             pto_mdd_all  = [(apply_tc(r, tc_rate), l) for r, l in all_results_pto_mdd]
             all_results_mvo_tc = [(apply_tc(r, tc_rate), l) for r, l in all_results_mvo]
 
-            # ── Lookback별로 개별 그래프 생성 ──────────────────
+            # ---- one panel per lookback ----
             for lb in LOOKBACK_LIST:
                 dfl_lb = [(r, l) for r, l in all_results_dfl_mdd if f"LB={lb}" in l]
                 mdd_lb = [(r, l) for r, l in pto_mdd_all          if f"LB={lb}" in l]
@@ -183,7 +183,7 @@ def plot_overall_comparison(dfl_results_store, all_results_pto_mdd, all_results_
                     sharex=True
                 )
 
-                # x축 날짜 배열 구성
+                # build the x-axis date array
                 if full_dates is not None and test_start_idx is not None:
                     eq_len = len(build_equity_curve(dfl_lb[0][0]))
                     x_vals = full_dates[test_start_idx:test_start_idx + eq_len]
@@ -201,11 +201,11 @@ def plot_overall_comparison(dfl_results_store, all_results_pto_mdd, all_results_
                     dd_last, xs_last = _plot_item(ax_pnl, ax_dd, res, lbl, color,
                                                   linewidth=2.0, linestyle=":", x_vals=x_vals)
 
-                # ── 벤치마크(EW/GMV/hist-MVO) 추가 ──
+                # ---- overlay benchmarks (EW / GMV / hist-MVO) ----
                 if bench_store is not None:
                     for blbl, bres in bench_store.items():
                         is_ew = blbl.startswith("EW")
-                        # EW는 항상, 그 외는 해당 LB만
+                        # EW always, the others only for this lookback
                         if not is_ew and f"LB={lb}" not in blbl:
                             continue
                         bcolor, bstyle = _bench_style(blbl)
@@ -219,7 +219,7 @@ def plot_overall_comparison(dfl_results_store, all_results_pto_mdd, all_results_
                 ax_pnl.set_ylabel("Portfolio Value")
                 ax_pnl.legend(loc="upper left", fontsize=8.0)
 
-                # 양 옆 살짝 여백
+                # small horizontal margin
                 if x_vals is not None:
                     import pandas as pd
                     pad = pd.Timedelta(days=60)
@@ -252,6 +252,6 @@ def plot_overall_comparison(dfl_results_store, all_results_pto_mdd, all_results_
                     PLOT_DIR,
                     f"overall_{N_STOCKS}_inds_LB{lb}_{lam_val}{tc_suffix}.png")
                 plt.savefig(plot_path, bbox_inches="tight", dpi=450)
-                print(f"  ✓ plot 저장: {plot_path}")
+                print(f"  saved: {plot_path}")
 
                 plt.show()

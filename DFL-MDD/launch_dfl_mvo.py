@@ -1,31 +1,35 @@
 """
 launch_dfl_mvo.py
-─────────────────
-DFL-MVO delta sweep을 (delta, lambda) shard로 전개해 프로세스 풀로 돌린다.
+-----------------
+Expand the DFL-MVO delta sweep into (delta, lambda) shards and run them through a
+process pool.
 
-왜 풀인가
+Why a pool
 ---------
-노트북의 기존 sweep 셀은 delta를 순차로 돌면서 delta마다 lambda 4개만 병렬로
-띄웠다. delta 9개 × lambda 4개면 작업이 36개인데 동시 4개만 쓰니 24코어 중
-4개(17%)만 돈다. delta끼리는 의존이 없고 체크포인트도
-dfl_mvo_..._d{D}_l{lam}_...pkl 로 조합마다 갈리므로 36개를 한꺼번에 굴려도 된다.
+The sweep cell in the notebooks stepped through delta sequentially and ran only the
+four lambdas in parallel. With 9 deltas and 4 lambdas that is 36 jobs but only 4 at a
+time, leaving 4 of 24 cores busy (17%). The deltas are independent and each
+combination writes its own checkpoint (dfl_mvo_..._d{D}_l{lam}_...pkl), so all 36
+can run at once.
 
-shard 하나 = LOOKBACK 2개 × fold 8개 = 16 유닛으로 36개가 모두 같은 크기다.
-따라서 동시 18개면 정확히 2라운드로 떨어지고 낙오(straggler)가 없다.
-LOOKBACK으로 더 쪼갤 이유는 없다 (총 시간이 같고 체크포인트만 늘어난다).
+Each shard is 2 lookbacks x 8 folds = 16 units, so all 36 shards are the same size.
+At a concurrency of 18 that divides into exactly two rounds with no stragglers.
+There is no reason to split further on LOOKBACK: the total time is unchanged and it
+only multiplies the checkpoints.
 
-메모리
+Memory
 ------
-run_dfl_mvo.py에 float32 WindowSet 수정이 적용된 뒤 기준으로 30 inds / LB=504 /
-fold 8에서 워커당 ~1.4GB다. 동시 18개면 약 25GB로 31.5GB 안에 들어간다.
-수정 전(워커당 ~1.8GB)이라면 18개는 32GB를 넘기니 --jobs 를 14로 낮출 것.
+With the float32 WindowSet change in run_dfl_mvo.py, a worker holds about 1.4GB at
+30 industries, LB=504, fold 8. Eighteen workers come to roughly 25GB, which fits in
+31.5GB. Without that change a worker holds about 1.8GB and 18 workers would exceed
+32GB, so lower --jobs to 14.
 
-사용법
+Usage
 ------
   python launch_dfl_mvo.py --data 30 --horizon 126 --jobs 18
   python launch_dfl_mvo.py --data 30 --horizon 126 --jobs 18 --dry-run
 
-체크포인트는 노트북이 읽는 이름 그대로라 병합(merge)이 필요 없다.
+Checkpoints already carry the names the notebooks read, so no merge step is needed.
 """
 
 import argparse
@@ -44,13 +48,14 @@ ap.add_argument("--delta", type=float, nargs="+",
                 default=[20, 50, 100, 200, 500, 1000, 2000, 5000, 10000])
 ap.add_argument("--lam",   type=float, nargs="+", default=[0.3, 0.5, 0.7, 1.0])
 ap.add_argument("--jobs", type=int, default=None,
-                help="동시 실행 수 (기본: 코어수-6, 최대 18)")
+                help="number of concurrent processes (default: cores-6, capped at 18)")
 ap.add_argument("--xmax", type=float, default=1.0,
-                help="자산별 비중 상한. 1.0이 아니면 체크포인트/로그 이름에 _xm 태그")
+                help="per-asset weight cap; anything other than 1.0 adds an _xm tag to the "
+                     "checkpoint and log names")
 ap.add_argument("--python", default=sys.executable)
 ap.add_argument("--log-dir", default="./logs")
 ap.add_argument("--n-folds", type=int, default=8,
-                help="완료 판정 기준 fold 수 (끝난 shard는 건너뜀)")
+                help="fold count that counts as complete; finished shards are skipped")
 ap.add_argument("--dry-run", action="store_true")
 args = ap.parse_args()
 
@@ -90,12 +95,12 @@ for delta, lam in itertools.product(args.delta, args.lam):
     shards.append((delta, lam))
 
 print(f"data={args.data} inds  h={args.horizon}  solver={args.solver}")
-print(f"코어 {os.cpu_count()}  동시 실행 {JOBS}")
-print(f"shard {len(shards) + done}개 중 실행 {len(shards)}개 "
-      f"(이미 완료 {done}개 건너뜀)")
+print(f"cores {os.cpu_count()}  concurrency {JOBS}")
+print(f"running {len(shards)} of {len(shards) + done} shards "
+      f"({done} already complete, skipped)")
 if shards:
     rounds = -(-len(shards) // JOBS)
-    print(f"예상 {rounds}라운드 × 16유닛\n")
+    print(f"about {rounds} round(s) x 16 units\n")
 
 if args.dry_run:
     for delta, lam in shards:
@@ -117,7 +122,7 @@ def spawn(shard):
         args.log_dir,
         f"dflmvo_{N_STOCKS}_h{args.horizon}{XMTAG}_d{_d(delta)}_l{lam}.txt")
     f = open(log_path, "w", encoding="utf-8")
-    # 로그에 '—' '═' 등이 있어 cp949로는 인코딩 실패 → 자식 stdout을 UTF-8로
+    # The logs contain characters cp949 cannot encode, so force child stdout to UTF-8.
     env = {**os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1"}
     p = subprocess.Popen(
         [args.python, "-u", "run_dfl_mvo.py",
@@ -126,8 +131,8 @@ def spawn(shard):
          "--delta", str(_d(delta)), "--lam", str(lam),
          "--xmax", str(args.xmax)],
         stdout=f, stderr=subprocess.STDOUT, env=env)
-    print(f"[+{int(time.time() - t_start):5d}s] 시작 {name} "
-          f"(PID {p.pid}) → {log_path}", flush=True)
+    print(f"[+{int(time.time() - t_start):5d}s] start {name} "
+          f"(PID {p.pid}) -> {log_path}", flush=True)
     return (name, p, f, time.time())
 
 
@@ -147,20 +152,20 @@ try:
             f.close()
             if rc != 0:
                 failed.append(name)
-            mark = "완료" if rc == 0 else f"실패(rc={rc})"
+            mark = "ok" if rc == 0 else f"failed (rc={rc})"
             print(f"[+{int(time.time() - t_start):5d}s] {mark} {name} "
                   f"[{int(time.time() - t0)}s]  "
-                  f"남은 {len(pending)} / 실행중 {len(still)}", flush=True)
+                  f"pending {len(pending)} / running {len(still)}", flush=True)
         running = still
 except KeyboardInterrupt:
-    print("\n중단 — 실행 중인 프로세스를 종료합니다 "
-          "(체크포인트는 fold 단위 저장이라 재실행하면 이어집니다)")
+    print("\ninterrupted -- terminating the running processes. "
+          "Checkpoints are written per fold, so re-running resumes where it stopped.")
     for _, p, f, _ in running:
         p.terminate(); f.close()
     raise SystemExit(130)
 
-print(f"\n전체 완료 — {int(time.time() - t_start)}초")
+print(f"\nall done -- {int(time.time() - t_start)}s")
 if failed:
-    print(f"실패 {len(failed)}개: {failed}  (logs/ 확인 후 재실행하면 이어짐)")
+    print(f"{len(failed)} failed: {failed}  (check logs/ and re-run to resume)")
 else:
-    print("체크포인트는 노트북이 읽는 이름 그대로입니다 (merge 불필요).")
+    print("Checkpoints already use the names the notebooks read; no merge needed.")

@@ -79,7 +79,7 @@ def build_optimization_layer(N: int, m: int, gamma: float = 0.01,
 
     if delta > 0:
         # risk term: -(delta/2) * ||L^T x||^2  (Cholesky: Sigma = L L^T)
-        # cp.sum_squares(L_p.T @ x) 는 DPP-compliant (파라미터가 선형으로 1회 등장)
+        # cp.sum_squares(L_p.T @ x) is DPP-compliant: the parameter appears linearly, once
         L_p       = cp.Parameter((m, m), name="L")   # lower-triangular Cholesky factor
         risk_term = (delta / 2) * cp.sum_squares(L_p.T @ x)
         objective = cp.Maximize(Y_hat[N - 1] @ x - risk_term
@@ -110,8 +110,8 @@ def solve_portfolio(
     C: float,
     x_min: float,
     x_max: float,
-    Sigma_list=None,          # list of (m,m) torch.Tensor, delta>0일 때만 사용
-    infeas_counter=None,      # list (mutable): solver 실패 시 append (Reviewer #4)
+    Sigma_list=None,          # list of (m,m) torch.Tensor, only used when delta>0
+    infeas_counter=None,      # mutable list, appended to on solver failure (reviewer comment #4)
     solve_method="ECOS",      # diffcp forward solver: "ECOS" | "SCS" | "CLARABEL"
 ) -> torch.Tensor:
     batch, N, m = y_hat.shape
@@ -123,7 +123,7 @@ def solve_portfolio(
     for b in range(batch):
         try:
             if Sigma_list is not None:
-                # Cholesky 분해: Sigma = L L^T  (L: lower-triangular)
+                # Cholesky factorisation: Sigma = L L^T, L lower-triangular
                 L_b = torch.linalg.cholesky(Sigma_list[b].double())
                 x_star_b, _ = opt_layer(
                     y_hat[b].double(), n1C_val, x_min_val, x_max_val,
@@ -135,8 +135,9 @@ def solve_portfolio(
                     y_hat[b].double(), n1C_val, x_min_val, x_max_val,
                     solver_args={"solve_method": solve_method},
                 )
-            # 예외는 없었지만 해가 무효인 경우 탐지.
-            # CLARABEL은 수치적 실패 시 예외 대신 x=0 (sum(x)==1 위반)을 반환한다.
+            # Catch a solution that is invalid even though no exception was raised.
+            # On numerical failure CLARABEL returns x=0, violating sum(x)==1,
+            # rather than raising.
             s = float(x_star_b.detach().sum())
             fail_reason = None if abs(s - 1.0) <= 1e-4 else f"invalid_sum={s:.2e}"
         except Exception as e:
@@ -155,18 +156,19 @@ def solve_portfolio(
 
 def min_achievable_dd(y_hat_np, m, C, x_min, x_max):
     """
-    주어진 예측 누적수익 경로에서 '달성 가능한 최소 drawdown' n1*를 계산.
+    Compute the smallest achievable drawdown n1* for a predicted cumulative path.
 
         min  n1   s.t.  u_0 = 0
                         u_k - y_k'x <= n1*C,  u_k >= y_k'x,  u_k >= u_{k-1}
                         x_min <= x <= x_max,  sum(x) = 1
 
-    목적함수(수익·위험)를 제거한 순수 feasibility 문제이므로,
-    n1* > n1(설정값) 이면 해당 윈도우는 **수치적 실패가 아니라 진짜 infeasible**이다.
+    This is a pure feasibility problem with the return and risk objective removed,
+    so n1* greater than the configured n1 means the window is genuinely infeasible
+    rather than a numerical failure.
 
     Returns
     -------
-    (n1_star, status) : n1_star는 실패 시 nan
+    (n1_star, status) : n1_star is nan on failure
     """
     N = y_hat_np.shape[0]
     n1v = cp.Variable(nonneg=True)
@@ -218,10 +220,10 @@ def compute_sharpe(
     """
     Per-sample Sharpe ratio.
 
-    x_star     : (batch, m)       — portfolio weights
-    r_real     : (batch, N, m)    — per-period asset returns
+    x_star     : (batch, m)       -- portfolio weights
+    r_real     : (batch, N, m)    -- per-period asset returns
     Sigma_list : list of (m, m) float64 tensors estimated from lookback window.
-                 When provided, portfolio variance = x^T Σ x.
+                 When provided, portfolio variance = x^T sum x.
                  When None, falls back to sample std of realised portfolio returns.
     """
     # Per-period portfolio returns: shape (batch, N)
@@ -264,7 +266,8 @@ def forward_pass(z, r_real, pred_model, opt_layer, n1, C, d, x_min, x_max, lam,
     r_hat  = pred_model(z)
     y_hat  = compute_cumulative_path(r_hat)
 
-    # Sigma 추정: is_mean/is_std 제공 시 항상 추정 (Sharpe 및 delta 공통 사용)
+    # Sigma is always estimated when is_mean/is_std are given; it feeds both the
+    # Sharpe ratio and the delta risk term
     Sigma_list = None
     if is_mean is not None and is_std is not None:
         batch     = z.shape[0]
@@ -272,14 +275,14 @@ def forward_pass(z, r_real, pred_model, opt_layer, n1, C, d, x_min, x_max, lam,
         lb        = z.shape[1] // m_dim
         is_mean_t = torch.tensor(is_mean, dtype=torch.float32)
         is_std_t  = torch.tensor(is_std,  dtype=torch.float32)
-        z_raw     = z.reshape(batch, lb, m_dim) * is_std_t + is_mean_t   # 역정규화
+        z_raw     = z.reshape(batch, lb, m_dim) * is_std_t + is_mean_t   # undo standardisation
         Sigma_list = []
         for b in range(batch):
             z_b = z_raw[b].detach().numpy()
             S   = np.cov(z_b.T) + 1e-4 * np.eye(m_dim)
             Sigma_list.append(torch.tensor(S, dtype=torch.float64))
 
-    # solve_portfolio에는 delta>0일 때만 Sigma 전달 (최적화 목적함수용)
+    # Sigma is only passed to solve_portfolio when delta>0, for the objective
     x_star = solve_portfolio(y_hat, opt_layer, n1, C, x_min, x_max,
                              Sigma_list if delta > 0 else None,
                              solve_method=solve_method)
@@ -287,21 +290,22 @@ def forward_pass(z, r_real, pred_model, opt_layer, n1, C, d, x_min, x_max, lam,
     w_real = compute_realized_path(x_star, y_real)
     R_real = compute_return(w_real, d, C)
     M_real = compute_max_drawdown(w_real)
-    Sharpe = compute_sharpe(x_star, r_real, Sigma_list)   # lookback Σ 사용
+    Sharpe = compute_sharpe(x_star, r_real, Sigma_list)   # uses the lookback covariance
     loss   = dfl_loss(Sharpe, M_real, lam)
     return {"r_hat": r_hat, "y_hat": y_hat, "x_star": x_star,
             "y_real": y_real, "w_real": w_real,
             "R_real": R_real, "M_real": M_real, "Sharpe": Sharpe, "loss": loss}
 
 def _stack_f32(samples, field):
-    """샘플 집합을 (n, ...) float32 텐서로 만든다.
+    """Stack a sample set into an (n, ...) float32 tensor.
 
-    run_dfl_mdd.WindowSet처럼 연속 float32 배열(.Z/.R)을 들고 있으면
-    torch.from_numpy로 복사 없이 감싼다 (메모리 1/3). 그 외(리스트 등)는
-    기존과 동일하게 스택 후 캐스팅한다. 두 경로의 값은 같다.
+    When the samples hold contiguous float32 arrays (.Z / .R), as run_dfl_mdd.WindowSet
+    does, they are wrapped with torch.from_numpy without copying, which cuts memory
+    use to about a third. Anything else (a plain list, say) is stacked and cast as
+    before. Both paths produce the same values.
 
-    from_numpy는 메모리를 공유하므로 반환된 텐서를 in-place로 수정하면 안 된다.
-    현재 학습 루프는 zs_tr[idx] 같은 advanced indexing(복사)만 쓴다.
+    from_numpy shares memory, so the returned tensor must not be modified in place.
+    The training loop only uses advanced indexing such as zs_tr[idx], which copies.
     """
     arr = getattr(samples, ("Z", "R")[field], None)
     if arr is not None and arr.dtype == np.float32:
@@ -310,7 +314,7 @@ def _stack_f32(samples, field):
 
 
 # =============================================================================
-# Train (DFL-MDD) — Val Early Stopping
+# Train (DFL-MDD) -- Val Early Stopping
 # =============================================================================
 def train_dfl_mdd(pred_model, opt_layer, train_samples, val_samples=None,
                   epochs=50, batch_size=16, lr=1e-4,
@@ -319,11 +323,15 @@ def train_dfl_mdd(pred_model, opt_layer, train_samples, val_samples=None,
                   patience=10, lr_patience=10, lr_factor=0.5,
                   train_dates=None, solve_method="ECOS"):
     """
-    DFL-MDD 학습 함수.
-    val_samples가 주어지면 매 epoch val loss를 계산하여 early stopping 수행.
-    val_samples는 리밸런싱 간격으로 서브샘플링된 것을 권장 (속도).
-    lr_patience : ReduceLROnPlateau patience (val loss 정체 시 lr 감소)
-    lr_factor   : lr 감소 비율 (default 0.5 → lr을 절반으로)
+    Train DFL-MDD.
+
+    When val_samples is given, the validation loss is computed every epoch and used
+    for early stopping. Subsampling val_samples at the rebalancing interval is
+    recommended for speed.
+
+    lr_patience : ReduceLROnPlateau patience; the learning rate drops when the
+                  validation loss stops improving
+    lr_factor   : multiplicative factor for that drop (default 0.5, i.e. halved)
     """
     optimizer = optim.Adam(pred_model.parameters(), lr=lr, weight_decay=1e-4)
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(
@@ -340,9 +348,9 @@ def train_dfl_mdd(pred_model, opt_layer, train_samples, val_samples=None,
     best_val_loss    = float("inf")
     best_state       = None
     no_improve       = 0
-    inaccurate_log   = []   # {"epoch", "batch", "n_inaccurate"} 기록
+    inaccurate_log   = []   # records {"epoch", "batch", "n_inaccurate"}
 
-    print("\n── DFL-MDD Training (with Val Early Stopping + LR Scheduler) ──")
+    print("\n-- DFL-MDD Training (with Val Early Stopping + LR Scheduler) --")
 
     for epoch in range(epochs):
         pred_model.train()
@@ -427,12 +435,12 @@ def train_dfl_mdd(pred_model, opt_layer, train_samples, val_samples=None,
         pred_model.load_state_dict(best_state)
 
     if inaccurate_log:
-        print(f"\n  ⚠ Inaccurate 발생: 총 {len(inaccurate_log)}회")
+        print(f"\n  inaccurate solves: {len(inaccurate_log)} in total")
         for ev in inaccurate_log:
             date_str = f"  [{ev['date_start']} ~ {ev['date_end']}]" if "date_start" in ev else ""
             print(f"    epoch={ev['epoch']:3d}, batch={ev['batch']:3d}, count={ev['n_inaccurate']}{date_str}")
     else:
-        print("\n  ✓ Inaccurate 없음")
+        print("\n  no inaccurate solves")
 
     return pred_model, inaccurate_log
 
@@ -448,17 +456,17 @@ def backtest_dfl_mdd(pred_model, opt_layer, rebal_samples, N, d, C,
     lookback = rebal_samples[0][0].shape[0] // m
     names    = stock_names if stock_names else [f"S{j+1}" for j in range(m)]
     results  = []
-    cum_pv   = [1.0]   # 누적 portfolio value (이미지 MDD와 동일 기준)
+    cum_pv   = [1.0]   # cumulative portfolio value (same basis as the reported MDD)
 
-    print("\n── Backtest : DFL-MDD ──")
+    print("\n-- Backtest : DFL-MDD --")
     print(f"{'Win':>4}  {'R_real':>8}  {'Sharpe':>8}  {'MDD(%)':>8}  {'Top-3 weights'}")
     print("-" * 75)
 
     pred_model.eval()
     bt_inaccurate_log = []   # {"window", "n_inaccurate"}
-    infeas_log        = []   # solver 실패(=infeasible fallback) 기록 (Reviewer #4)
-    failed_windows    = []   # 실패한 윈도우 인덱스 (0-based)
-    min_n1_log        = []   # 실패 윈도우별 달성 가능 최소 drawdown
+    infeas_log        = []   # records solver failures, i.e. infeasible fallbacks (reviewer comment #4)
+    failed_windows    = []   # indices of failed windows (0-based)
+    min_n1_log        = []   # smallest achievable drawdown per failed window
 
     for i, (z_np, r_np) in enumerate(tqdm(rebal_samples, desc="Backtesting")):
         z      = torch.tensor(z_np[None], dtype=torch.float32)
@@ -467,10 +475,10 @@ def backtest_dfl_mdd(pred_model, opt_layer, rebal_samples, N, d, C,
         with torch.no_grad():
             r_hat = pred_model(z)
 
-        # Sigma 추정: is_mean/is_std 제공 시 항상 추정
+        # Sigma is always estimated when is_mean/is_std are given
         Sigma_list = None
         if is_mean is not None and is_std is not None:
-            z_raw      = z_np.reshape(lookback, m) * is_std + is_mean   # 역정규화
+            z_raw      = z_np.reshape(lookback, m) * is_std + is_mean   # undo standardisation
             S          = np.cov(z_raw.T) + 1e-4 * np.eye(m)
             Sigma_list = [torch.tensor(S, dtype=torch.float64)]
 
@@ -487,11 +495,11 @@ def backtest_dfl_mdd(pred_model, opt_layer, rebal_samples, N, d, C,
             )
         window_failed = len(infeas_log) > infeas_before
         if window_failed:
-            failed_windows.append(i)      # 실패 윈도우 인덱스 기록
+            failed_windows.append(i)      # record the failed window index
 
-        # 달성 가능한 최소 drawdown n1* — 전 윈도우에서 계산.
-        #   실패 윈도우 : 수치적 실패인지 진짜 infeasible인지 판별
-        #   성공 윈도우 : 명목 제약 n1 대비 여유(slack)를 정량화
+        # Smallest achievable drawdown n1*, computed for every window.
+        #   failed windows    : tells a numerical failure from a true infeasibility
+        #   successful windows: quantifies the slack against the nominal n1
         mdd_min, st = min_achievable_dd(
             y_hat[0].detach().double().numpy(), m, C, x_min, x_max)
         min_n1_log.append({
@@ -505,7 +513,7 @@ def backtest_dfl_mdd(pred_model, opt_layer, rebal_samples, N, d, C,
         y_real = compute_cumulative_path(r_real)
         w_real = compute_realized_path(x_star, y_real)[0].numpy()
 
-        # HORIZON > REBAL인 경우 실제 보유 기간만큼 잘라서 사용
+        # when HORIZON > REBAL, truncate to the actual holding period
         if rebal is not None:
             w_real  = w_real[:rebal]
             r_real  = r_real[:, :rebal, :]
@@ -515,12 +523,12 @@ def backtest_dfl_mdd(pred_model, opt_layer, rebal_samples, N, d, C,
         base    = cum_pv[-1]
         cum_pv.extend((base * (1 + w_real)).tolist())
 
-        # 로그용: 해당 윈도우 내 per-window MDD
+        # for logging: per-window MDD inside this window
         pv_w    = 1 + w_real
         rmax_w  = np.maximum.accumulate(pv_w)
         M_real  = np.max((rmax_w - pv_w) / (rmax_w + 1e-10))
 
-        # Sharpe: lookback Σ 기반 포트폴리오 분산
+        # Sharpe: portfolio variance from the lookback covariance
         sharpe_val = compute_sharpe(x_star, r_real, Sigma_list).item()
 
         w        = x_star[0].numpy()
@@ -537,21 +545,21 @@ def backtest_dfl_mdd(pred_model, opt_layer, rebal_samples, N, d, C,
         print(f"  {i+1:3d}  {R_real:8.4f}  {sharpe_val:8.4f}  {M_real:8.4%}  n={n_active:2d}  {top3}")
 
     if bt_inaccurate_log:
-        print(f"\n  ⚠ Backtest Inaccurate 발생: 총 {len(bt_inaccurate_log)}회")
+        print(f"\n  inaccurate solves during backtest: {len(bt_inaccurate_log)} in total")
         for ev in bt_inaccurate_log:
             print(f"    window={ev['window']:3d}, count={ev['n_inaccurate']}")
     else:
-        print("\n  ✓ Backtest Inaccurate 없음")
+        print("\n  no inaccurate solves during backtest")
 
-    # ── infeasibility rate (Reviewer #4) ──
+    # -- infeasibility rate (Reviewer #4) --
     n_win  = len(results)
     n_inf  = len(infeas_log)
     infeas_summary = {
         "n_infeasible":   n_inf,
         "n_windows":      n_win,
         "rate":           (n_inf / n_win) if n_win else float("nan"),
-        "failed_windows": list(failed_windows),   # 실패 윈도우 인덱스
-        "min_n1_log":     list(min_n1_log),       # 실패 원인 분해
+        "failed_windows": list(failed_windows),   # indices of failed windows
+        "min_n1_log":     list(min_n1_log),       # breakdown of the failure cause
         "n_true_infeas":  sum(1 for e in min_n1_log
                               if e["failed"] and e["true_infeasible"] is True),
         "n_numerical":    sum(1 for e in min_n1_log
@@ -559,16 +567,16 @@ def backtest_dfl_mdd(pred_model, opt_layer, rebal_samples, N, d, C,
         "solve_method":   solve_method,
     }
     if n_inf > 0:
-        print(f"\n  ⚠ Fallback 발생: {n_inf}/{n_win} ({infeas_summary['rate']:.2%})")
-        print(f"      진짜 infeasible {infeas_summary['n_true_infeas']} / "
-              f"수치적 실패 {infeas_summary['n_numerical']}")
+        print(f"\n  fallbacks: {n_inf}/{n_win} ({infeas_summary['rate']:.2%})")
+        print(f"      truly infeasible {infeas_summary['n_true_infeas']} / "
+              f"numerical failures {infeas_summary['n_numerical']}")
         need = [e["min_n1"] for e in min_n1_log
                 if e["failed"] and e["min_n1"] == e["min_n1"]]
         if need:
-            print(f"      필요 최소 n1: 평균 {np.mean(need):.3f}, "
-                  f"최대 {np.max(need):.3f}  (설정 {n1})")
+            print(f"      smallest feasible n1: mean {np.mean(need):.3f}, "
+                  f"max {np.max(need):.3f}  (configured {n1})")
     else:
-        print("\n  ✓ Fallback 없음 (0%)")
+        print("\n  no fallbacks (0%)")
 
     return results, bt_inaccurate_log, infeas_summary
 
@@ -622,7 +630,7 @@ def plot_pnl(bt_results: list, horizon: int, label: str = "Portfolio", figsize=(
     plt.tight_layout()
     plt.show()
 
-    print(f"\n── PnL Summary ({label}) ──")
+    print(f"\n-- PnL Summary ({label}) --")
     print(f"  Final Value  : {pv[-1]:.4f}")
     print(f"  Total Return : {total_ret:.4%}")
     print(f"  Max Drawdown : {max_dd:.4%}")

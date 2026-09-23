@@ -1,31 +1,35 @@
 """
 launch_dfl_mdd.py
-─────────────────
-DFL-MDD 학습을 (lam, LOOKBACK, n1) shard로 전개하고, 동시 실행 수를 제한한
-프로세스 풀로 돌린다.
+-----------------
+Expand DFL-MDD training into (lam, LOOKBACK, n1) shards and run them through a
+process pool with a cap on concurrency.
 
-왜 shard인가
+Why shard
 ------------
-dfl_mdd.solve_portfolio는 배치 안의 LP를 한 개씩 순차로 풀고, run_dfl_mdd.py는
-BLAS/torch 스레드를 1로 고정한다. 즉 **프로세스 1개 = 코어 1개**다.
-lambda로만 4분할하면 24코어 중 4개(17%)만 쓴다.
-lam(4) × LB(2) × n1(4) = shard 32개로 쪼개면 코어를 채울 수 있다.
+dfl_mdd.solve_portfolio solves the LPs in a batch one at a time, and run_dfl_mdd.py
+pins BLAS and torch to a single thread, so one process uses exactly one core.
+Splitting on lambda alone gives 4 processes, which leaves 4 of 24 cores busy (17%).
+Splitting on lam(4) x LB(2) x n1(4) gives 32 shards, enough to fill the machine.
 
-왜 풀(pool)인가
+Why a pool
 ---------------
-shard 32개를 한꺼번에 띄우면 RAM이 먼저 터진다. 30 inds / LB=504 / 뒤쪽 fold
-기준 프로세스당 정상 ~1GB, 피크 ~1.5GB다 (train 샘플 리스트 float64 + np.array
-복사본 + float32 텐서가 겹치는 구간). 31.5GB 머신이면 동시 18~20개가 상한이다.
-또 shard 수 > 워커 수라서 P/E 코어 속도 차로 생기는 낙오(straggler)도 흡수된다.
+Launching all 32 shards at once exhausts RAM first. For 30 industries at LB=504 in
+the later folds each process holds about 1GB, peaking near 1.5GB where the float64
+sample list, its np.array copy and the float32 tensor overlap. On a 31.5GB machine
+that caps concurrency at roughly 18 to 20.
 
-무거운 shard(LB=504)를 먼저 던져(LPT) 꼬리 시간을 줄인다.
+Having more shards than workers also absorbs stragglers caused by the speed
+difference between performance and efficiency cores.
 
-사용법
+Heavy shards (LB=504) are dispatched first, longest-processing-time first, which
+shortens the tail.
+
+Usage
 ------
   python launch_dfl_mdd.py --data 30 --horizon 126 --jobs 18
   python launch_dfl_mdd.py --data 30 --horizon 252 --jobs 18 --dry-run
 
-끝나면 반드시 병합:
+Always merge afterwards:
   python merge_ckpt.py --data 30 --horizon 126
 """
 
@@ -46,15 +50,16 @@ ap.add_argument("--lam", type=float, nargs="+", default=[0.3, 0.5, 0.7, 1.0])
 ap.add_argument("--lb",  type=int,   nargs="+", default=[252, 504])
 ap.add_argument("--n1",  type=float, nargs="+", default=[0.1, 0.2, 0.3, 0.4])
 ap.add_argument("--jobs", type=int, default=None,
-                help="동시 실행 프로세스 수 (기본: 코어수-4, 최대 18). "
-                     "RAM 31.5GB / 30 inds 기준 18 이상은 권장하지 않음")
+                help="number of concurrent processes (default: cores-4, capped at 18). "
+                     "More than 18 is not recommended with 31.5GB of RAM at 30 industries")
 ap.add_argument("--xmax", type=float, default=1.0,
-                help="자산별 비중 상한. 1.0이 아니면 체크포인트/로그 이름에 _xm 태그")
+                help="per-asset weight cap; anything other than 1.0 adds an _xm tag to the "
+                     "checkpoint and log names")
 ap.add_argument("--python", default=sys.executable,
-                help="학습에 쓸 python 실행파일 (기본: 현재 인터프리터)")
+                help="python executable to train with (default: the current interpreter)")
 ap.add_argument("--log-dir", default="./logs")
 ap.add_argument("--n-folds", type=int, default=8,
-                help="완료 판정 기준 fold 수 (이미 끝난 shard는 건너뜀)")
+                help="fold count that counts as complete; finished shards are skipped")
 ap.add_argument("--dry-run", action="store_true")
 args = ap.parse_args()
 
@@ -84,7 +89,7 @@ def already_done(path):
         return False
 
 
-# ── shard 전개: 무거운 것(LOOKBACK 큰 것) 먼저 ──
+# ---- expand the shards, heaviest (largest LOOKBACK) first ----
 shards, done = [], 0
 for lb, lam, n1 in sorted(itertools.product(args.lb, args.lam, args.n1),
                           key=lambda t: -t[0]):
@@ -94,9 +99,9 @@ for lb, lam, n1 in sorted(itertools.product(args.lb, args.lam, args.n1),
     shards.append((lam, lb, n1))
 
 print(f"data={args.data} inds  h={args.horizon}  d={DELTA}  solver={args.solver}")
-print(f"코어 {os.cpu_count()}  동시 실행 {JOBS}")
-print(f"shard {len(shards) + done}개 중 실행 {len(shards)}개 "
-      f"(이미 완료 {done}개 건너뜀)\n")
+print(f"cores {os.cpu_count()}  concurrency {JOBS}")
+print(f"running {len(shards)} of {len(shards) + done} shards "
+      f"({done} already complete, skipped)\n")
 
 if args.dry_run:
     for lam, lb, n1 in shards:
@@ -118,8 +123,8 @@ def spawn(shard):
         args.log_dir,
         f"mdd_{N_STOCKS}_h{args.horizon}{XMTAG}_LB{lb}_n1{n1:g}_l{lam}.txt")
     f = open(log_path, "w", encoding="utf-8")
-    # 로그에 '—' '═' '✓' 등이 있어 cp949(한글 Windows 기본)로는 인코딩 실패한다.
-    # 자식 프로세스의 stdout 인코딩을 UTF-8로 강제.
+    # The logs contain characters that cp949 (the default on Korean Windows) cannot
+    # encode, so force the child process stdout to UTF-8.
     env = {**os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1"}
     p = subprocess.Popen(
         [args.python, "-u", "run_dfl_mdd.py",
@@ -128,8 +133,8 @@ def spawn(shard):
          "--lam", str(lam), "--lb", str(lb), "--n1", f"{n1:g}",
          "--xmax", str(args.xmax)],
         stdout=f, stderr=subprocess.STDOUT, env=env)
-    print(f"[+{int(time.time() - t_start):5d}s] 시작 {name} "
-          f"(PID {p.pid}) → {log_path}", flush=True)
+    print(f"[+{int(time.time() - t_start):5d}s] start {name} "
+          f"(PID {p.pid}) -> {log_path}", flush=True)
     return (name, p, f, time.time())
 
 
@@ -147,23 +152,23 @@ try:
                 still.append((name, p, f, t0))
                 continue
             f.close()
-            mark = "완료" if rc == 0 else f"실패(rc={rc})"
+            mark = "ok" if rc == 0 else f"failed (rc={rc})"
             if rc != 0:
                 failed.append(name)
             print(f"[+{int(time.time() - t_start):5d}s] {mark} {name} "
                   f"[{int(time.time() - t0)}s]  "
-                  f"남은 {len(pending)} / 실행중 {len(still)}", flush=True)
+                  f"pending {len(pending)} / running {len(still)}", flush=True)
         running = still
 except KeyboardInterrupt:
-    print("\n중단 — 실행 중인 프로세스를 종료합니다 "
-          "(체크포인트는 fold 단위로 저장되어 있으니 재실행하면 이어서 진행됩니다)")
+    print("\ninterrupted -- terminating the running processes. "
+          "Checkpoints are written per fold, so re-running resumes where it stopped.")
     for _, p, f, _ in running:
         p.terminate(); f.close()
     raise SystemExit(130)
 
-print(f"\n전체 완료 — {int(time.time() - t_start)}초")
+print(f"\nall done -- {int(time.time() - t_start)}s")
 if failed:
-    print(f"실패 {len(failed)}개: {failed}  (logs/ 확인 후 재실행하면 이어서 진행)")
+    print(f"{len(failed)} failed: {failed}  (check logs/ and re-run to resume)")
 else:
-    print(f"다음: python merge_ckpt.py --data {args.data} "
+    print(f"next: python merge_ckpt.py --data {args.data} "
           f"--horizon {args.horizon} --delta {DELTA} --solver {args.solver}")
