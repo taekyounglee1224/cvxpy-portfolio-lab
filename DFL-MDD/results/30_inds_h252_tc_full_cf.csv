@@ -1,4 +1,4 @@
-﻿H,lam,tc_bps,group,label,Ann.Ret(%),Sharpe,CVaR(5%)(%),MDD(%),MDD_abs(%),Calmar,HHI,Turnover
+H,lam,tc_bps,group,label,Ann.Ret(%),Sharpe,CVaR(5%)(%),MDD(%),MDD_abs(%),Calmar,HHI,Turnover
 252,0.3,0,DFL-MDD,"DFL-MDD (LB=252, n1=0.1)",8.82,0.5523,2.61,33.39,36.11,0.2641,0.2411,0.6386
 252,0.3,0,DFL-MDD,"DFL-MDD (LB=252, n1=0.2)",1.06,0.1504,2.81,34.32,36.8,0.031,0.3523,0.6699
 252,0.3,0,DFL-MDD,"DFL-MDD (LB=252, n1=0.3)",10.49,0.6453,2.62,29.3,31.32,0.3579,0.4532,0.7567
