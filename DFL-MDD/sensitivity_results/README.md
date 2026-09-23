@@ -110,23 +110,23 @@ the same (percent).
 - Three significance levels are reported side by side: 0.10, 0.05, 0.01.
 - The Wilcoxon signed-rank p-value is reported alongside.
 
-These CSV files carry **Korean column headers**. The mapping is:
+Columns:
 
 | Column | Meaning |
 | --- | --- |
-| `비교대상` | comparison model |
+| `comparison` | the comparison model |
 | `DFL-MDD` | mean per-window MDD of DFL-MDD (%) |
-| `비교모델` | mean per-window MDD of the comparison model (%) |
-| `차이` | difference (DFL-MDD minus comparison) |
-| `유의(0.10)` `유의(0.05)` `유의(0.01)` | significance at each level |
+| `other` | mean per-window MDD of the comparison model (%) |
+| `difference` | DFL-MDD minus the comparison |
+| `significant(0.10)` `significant(0.05)` `significant(0.01)` | verdict at each level |
 
 The significance cells hold one of three marks:
 
-| Character | Meaning |
+| Value | Meaning |
 | --- | --- |
-| check mark (U+2713) | DFL-MDD significantly better |
-| en dash (U+2013) | no significant difference |
-| ballot X (U+2717) | comparison model significantly better |
+| `+` | DFL-MDD significantly better |
+| `=` | no significant difference |
+| `-` | comparison model significantly better |
 
 ### 3-4. Drawdown-budget monotonicity
 
