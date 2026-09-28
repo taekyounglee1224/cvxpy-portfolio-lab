@@ -22,16 +22,34 @@ __all__ = ["plot_multi_pnl", "plot_overall_comparison", "plot_lambda_grid"]
 
 
 # ---- shared styling, so the single-lambda and the four-lambda figures match ----
-DFL_CMAP = plt.cm.Blues
+#
+# Every model family gets a hue far from the others, and the drawdown budgets
+# within a family are separated by lightness. The previous scheme put DFL-MVO on
+# teal and GMV on purple, both of which sit next to the DFL-MDD blues and were
+# hard to tell apart once thirteen series shared one panel.
+DFL_COLORS = ["#9ECAE1", "#4292C6", "#08519C", "#08306B"]   # DFL-MDD, light to navy
+MDD_COLORS = ["#A1D99B", "#41AB5D", "#006D2C", "#00441B"]   # PTO-MDD, light to forest
+# only one PTO-MVO curve appears per lookback panel, so the strong red comes first
+MVO_COLORS = ["#E31A1C", "#FB9A99"]                         # PTO-MVO
+
+DFL_CMAP = plt.cm.Blues      # fallback when a family holds more entries
 MDD_CMAP = plt.cm.Greens
 MVO_CMAP = plt.cm.Reds
 
+
+def _family_colors(explicit, cmap, n, lo=0.4, hi=0.9):
+    """Explicit hand-picked colors while they last, then sample the colormap."""
+    if n <= len(explicit):
+        return explicit[:n]
+    return [cmap(v) for v in np.linspace(lo, hi, max(n, 1))]
+
+
 # fixed style per benchmark (color, linestyle)
 BENCH_STYLE = {
-    "DFL-MVO":  ("#00B3B3", (0, (3, 1, 1, 1))),  # teal dash-dot-dot
-    "EW":       ("black",   (0, (1, 1))),        # black dotted (reference line)
-    "GMV":      ("#8000FF", "-."),               # purple dash-dot
-    "hist-MVO": ("#CC6600", (0, (5, 2))),        # orange dashed
+    "DFL-MVO":  ("#E7298A", (0, (3, 1, 1, 1))),  # magenta dash-dot-dot
+    "EW":       ("#000000", (0, (1, 1.2))),      # black dotted (reference line)
+    "GMV":      ("#FF8C00", "-."),               # orange dash-dot
+    "hist-MVO": ("#8C564B", (0, (5, 2))),        # brown dashed
 }
 
 
@@ -193,9 +211,9 @@ def plot_overall_comparison(dfl_results_store, all_results_pto_mdd, all_results_
                 if not dfl_lb:
                     continue
 
-                dfl_colors = [DFL_CMAP(v) for v in np.linspace(0.4, 0.9, max(len(dfl_lb), 1))]
-                mdd_colors = [MDD_CMAP(v) for v in np.linspace(0.4, 0.9, max(len(mdd_lb), 1))]
-                mvo_colors = [MVO_CMAP(v) for v in np.linspace(0.5, 0.9, max(len(mvo_lb), 1))]
+                dfl_colors = _family_colors(DFL_COLORS, DFL_CMAP, len(dfl_lb))
+                mdd_colors = _family_colors(MDD_COLORS, MDD_CMAP, len(mdd_lb))
+                mvo_colors = _family_colors(MVO_COLORS, MVO_CMAP, len(mvo_lb), 0.5, 0.9)
 
                 fig, (ax_pnl, ax_dd) = plt.subplots(
                     2, 1, figsize=(14, 9),
@@ -336,9 +354,9 @@ def plot_lambda_grid(dfl_results_store, all_results_pto_mdd, all_results_mvo,
         mvo_lb = _for_lb(_tc(all_results_mvo))
         dmv_lb = _for_lb(_tc((dfl_mvo_store or {}).get((delta_val, lam_val), [])))
 
-        dfl_colors = [DFL_CMAP(v) for v in np.linspace(0.4, 0.9, max(len(dfl_lb), 1))]
-        mdd_colors = [MDD_CMAP(v) for v in np.linspace(0.4, 0.9, max(len(mdd_lb), 1))]
-        mvo_colors = [MVO_CMAP(v) for v in np.linspace(0.5, 0.9, max(len(mvo_lb), 1))]
+        dfl_colors = _family_colors(DFL_COLORS, DFL_CMAP, len(dfl_lb))
+        mdd_colors = _family_colors(MDD_COLORS, MDD_CMAP, len(mdd_lb))
+        mvo_colors = _family_colors(MVO_COLORS, MVO_CMAP, len(mvo_lb), 0.5, 0.9)
 
         if full_dates is not None and test_start_idx is not None:
             eq_len = len(build_equity_curve(dfl_lb[0][0]))
