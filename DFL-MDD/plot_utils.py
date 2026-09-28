@@ -317,18 +317,24 @@ def plot_lambda_grid(dfl_results_store, all_results_pto_mdd, all_results_mvo,
                      delta_val, LAM_LIST, lb, N_STOCKS, PLOT_DIR,
                      full_dates=None, test_start_idx=None,
                      tc_rate=0.0, bench_store=None, dfl_mvo_store=None,
-                     full_np=None, REBAL=None, horizon=None, show=True):
+                     full_np=None, REBAL=None, horizon=None, show=True,
+                     metric="equity"):
     """
-    All four loss weights on one figure, as a 2x2 grid of equity curves for a
-    single universe and lookback.
+    All four loss weights on one figure, as a 2x2 grid for a single universe
+    and lookback.
+
+    metric="equity"   portfolio value
+    metric="drawdown" running peak-to-trough decline of that same curve
 
     The series are identical across panels, so the legend is drawn once at the
     figure level and carries model names only; the per-configuration MDD and
     Calmar values belong in the result tables, not in four stacked legends.
 
-    Parameters mirror plot_overall_comparison, except that `lb` is a single
-    lookback and `delta_val` a single risk-aversion value.
+    Parameters otherwise mirror plot_overall_comparison, except that `lb` is a
+    single lookback and `delta_val` a single risk-aversion value.
     """
+    if metric not in ("equity", "drawdown"):
+        raise ValueError(f"metric must be 'equity' or 'drawdown', got {metric!r}")
     os.makedirs(PLOT_DIR, exist_ok=True)
 
     def _tc(pairs):
@@ -367,8 +373,13 @@ def plot_lambda_grid(dfl_results_store, all_results_pto_mdd, all_results_mvo,
         def _draw(pairs, colors, lw, ls):
             for (res, lbl), color in zip(pairs, colors):
                 eq = build_equity_curve(res)
-                x  = xs[:len(eq)] if xs is not None else np.arange(len(eq))
-                ax.plot(x, eq, color=color, linewidth=lw, linestyle=ls,
+                if metric == "drawdown":
+                    peak = np.maximum.accumulate(eq)
+                    y = (eq - peak) / (peak + 1e-10)
+                else:
+                    y = eq
+                x = xs[:len(y)] if xs is not None else np.arange(len(y))
+                ax.plot(x, y, color=color, linewidth=lw, linestyle=ls,
                         label=_fmt_n1_pct(lbl))
 
         _draw(dfl_lb, dfl_colors, 1.5, "-")
@@ -394,7 +405,10 @@ def plot_lambda_grid(dfl_results_store, all_results_pto_mdd, all_results_mvo,
     for ax in axes.ravel()[len(lams):]:
         ax.set_visible(False)
     for ax in axes[:, 0]:
-        ax.set_ylabel("Portfolio Value")
+        ax.set_ylabel("Drawdown" if metric == "drawdown" else "Portfolio Value")
+    if metric == "drawdown":
+        for ax in axes.ravel():
+            ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda v, _: f"{v:.0%}"))
     for ax in axes[1, :]:
         ax.set_xlabel("Date" if full_dates is not None else "Trading Days")
         if full_dates is not None:
@@ -404,7 +418,8 @@ def plot_lambda_grid(dfl_results_store, all_results_pto_mdd, all_results_mvo,
             plt.setp(ax.xaxis.get_majorticklabels(), rotation=0)
 
     tc_str = f"  |  TC={int(round(tc_rate*10000))}bps" if tc_rate > 0 else ""
-    fig.suptitle(f"Overall Comparison across Loss Weights "
+    what = "Drawdown" if metric == "drawdown" else "Overall Comparison"
+    fig.suptitle(f"{what} across Loss Weights "
                  f"({N_STOCKS} Industries, Lookback = {lb}){tc_str}",
                  fontsize=13.5, fontweight="bold")
     fig.legend(handles, labels, loc="lower center", ncol=5, fontsize=8.5,
@@ -413,9 +428,10 @@ def plot_lambda_grid(dfl_results_store, all_results_pto_mdd, all_results_mvo,
 
     tc_suffix = f"_tc{int(round(tc_rate*10000))}bps" if tc_rate > 0 else ""
     h_tag     = f"_h{horizon}" if horizon is not None else ""
+    stem = "overall_lamgrid" if metric == "equity" else "drawdown_lamgrid"
     path = os.path.join(
         PLOT_DIR,
-        f"overall_lamgrid_{N_STOCKS}_inds{h_tag}_LB{lb}{tc_suffix}.png")
+        f"{stem}_{N_STOCKS}_inds{h_tag}_LB{lb}{tc_suffix}.png")
     fig.savefig(path, bbox_inches="tight", dpi=450)
     print(f"  saved: {path}")
 

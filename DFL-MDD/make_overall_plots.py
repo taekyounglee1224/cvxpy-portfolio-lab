@@ -218,12 +218,14 @@ def main():
                 DELTA_LIST, LAM_LIST, LOOKBACK_LIST,
                 n_stocks, plot_dir, tc_rate=tc, **common)
 
-            # all four lambdas on one figure, per lookback
+            # all four lambdas on one figure, per lookback, for both metrics
             for lb in LOOKBACK_LIST:
-                plot_lambda_grid(
-                    dfl_store_cf, pto_mdd_idx, mvo_idx,
-                    DELTA_LIST[0], LAM_LIST, lb,
-                    n_stocks, plot_dir, tc_rate=tc, **common)
+                for metric in ("equity", "drawdown"):
+                    plot_lambda_grid(
+                        dfl_store_cf, pto_mdd_idx, mvo_idx,
+                        DELTA_LIST[0], LAM_LIST, lb,
+                        n_stocks, plot_dir, tc_rate=tc,
+                        metric=metric, **common)
 
     print("\nall figures verified" if ok else "\nMISMATCHES FOUND - see above")
     return 0 if ok else 1
