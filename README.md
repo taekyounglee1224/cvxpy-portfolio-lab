@@ -84,12 +84,21 @@ DFL-MDD/
 │
 ├── 10_inds.ipynb / 30_inds.ipynb      main analysis
 ├── 10_inds_wcap.ipynb                 weight-cap analysis
-├── check_dd_duration.ipynb            drawdown-duration evidence for the horizon choice
-│
-└── csv/                               Fama-French input data
+└── check_dd_duration.ipynb            drawdown-duration evidence for the horizon choice
 ```
 
 Everything a run produces — `checkpoint/`, `logs/`, `weights/`, `results/`, `plots/` and `sensitivity_results/` — stays out of the repository and is recreated by the commands below.
+
+### Input data
+
+The return series are not redistributed here. Download the daily **10 Industry Portfolios** and **30 Industry Portfolios** from the [Kenneth R. French Data Library](https://mba.tuck.dartmouth.edu/pages/faculty/ken.french/data_library.html), take the *Average Value Weighted Returns — Daily* block from each file, and save it as
+
+```
+DFL-MDD/csv/10_industry.csv
+DFL-MDD/csv/30_industry.csv
+```
+
+with a `Date` column in `YYYY-MM-DD` and one column per industry, in percent. The loaders divide by 100, drop duplicate dates and sort by date; values of `-99.99` and `-999` mark missing data and do not occur over 2000–2025.
 
 ### Running
 

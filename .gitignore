@@ -11,6 +11,9 @@ DFL-MDD/results/
 DFL-MDD/plots/
 DFL-MDD/sensitivity_results/
 
+# local-only: source data, obtained from the Kenneth R. French Data Library
+DFL-MDD/csv/
+
 # python bytecode
 __pycache__/
 *.pyc
