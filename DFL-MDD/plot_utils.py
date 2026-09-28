@@ -18,7 +18,28 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as mtick
 from performance import build_equity_curve, compute_performance, apply_tc
 
-__all__ = ["plot_multi_pnl", "plot_overall_comparison"]
+__all__ = ["plot_multi_pnl", "plot_overall_comparison", "plot_lambda_grid"]
+
+
+# ---- shared styling, so the single-lambda and the four-lambda figures match ----
+DFL_CMAP = plt.cm.Blues
+MDD_CMAP = plt.cm.Greens
+MVO_CMAP = plt.cm.Reds
+
+# fixed style per benchmark (color, linestyle)
+BENCH_STYLE = {
+    "DFL-MVO":  ("#00B3B3", (0, (3, 1, 1, 1))),  # teal dash-dot-dot
+    "EW":       ("black",   (0, (1, 1))),        # black dotted (reference line)
+    "GMV":      ("#8000FF", "-."),               # purple dash-dot
+    "hist-MVO": ("#CC6600", (0, (5, 2))),        # orange dashed
+}
+
+
+def _bench_style(label):
+    for key, style in BENCH_STYLE.items():
+        if label.startswith(key):
+            return style
+    return ("gray", "-")
 
 
 def plot_multi_pnl(results_list, figsize=(14, 8), title="Cumulative PnL Comparison"):
@@ -142,24 +163,6 @@ def plot_overall_comparison(dfl_results_store, all_results_pto_mdd, all_results_
                            'h{horizon}' tag.
     show                 : call plt.show() after each figure.
     """
-    DFL_CMAP = plt.cm.Blues
-    MDD_CMAP = plt.cm.Greens
-    MVO_CMAP = plt.cm.Reds
-
-    # fixed style per benchmark (color, linestyle)
-    BENCH_STYLE = {
-        "DFL-MVO":  ("#00B3B3", (0, (3, 1, 1, 1))),  # teal dash-dot-dot
-        "EW":       ("black",   (0, (1, 1))),        # black dotted (reference line)
-        "GMV":      ("#8000FF", "-."),               # purple dash-dot
-        "hist-MVO": ("#CC6600", (0, (5, 2))),        # orange dashed
-    }
-
-    def _bench_style(label):
-        for key, style in BENCH_STYLE.items():
-            if label.startswith(key):
-                return style
-        return ("gray", "-")
-
     os.makedirs(PLOT_DIR, exist_ok=True)
 
     for delta_val in DELTA_LIST:
@@ -290,3 +293,116 @@ def plot_overall_comparison(dfl_results_store, all_results_pto_mdd, all_results_
                     plt.show()
                 else:
                     plt.close(fig)
+
+
+def plot_lambda_grid(dfl_results_store, all_results_pto_mdd, all_results_mvo,
+                     delta_val, LAM_LIST, lb, N_STOCKS, PLOT_DIR,
+                     full_dates=None, test_start_idx=None,
+                     tc_rate=0.0, bench_store=None, dfl_mvo_store=None,
+                     full_np=None, REBAL=None, horizon=None, show=True):
+    """
+    All four loss weights on one figure, as a 2x2 grid of equity curves for a
+    single universe and lookback.
+
+    The series are identical across panels, so the legend is drawn once at the
+    figure level and carries model names only; the per-configuration MDD and
+    Calmar values belong in the result tables, not in four stacked legends.
+
+    Parameters mirror plot_overall_comparison, except that `lb` is a single
+    lookback and `delta_val` a single risk-aversion value.
+    """
+    os.makedirs(PLOT_DIR, exist_ok=True)
+
+    def _tc(pairs):
+        if not tc_rate:
+            return list(pairs)
+        return [(apply_tc(r, tc_rate, full_np=full_np, REBAL=REBAL), l)
+                for r, l in pairs]
+
+    def _for_lb(pairs):
+        return [(r, l) for r, l in pairs if f"LB={lb}" in l]
+
+    lams = [l for l in LAM_LIST if (delta_val, l) in dfl_results_store]
+    if not lams:
+        print(f"  skipped: LB={lb} (no checkpoint)")
+        return None
+
+    fig, axes = plt.subplots(2, 2, figsize=(15, 9), sharex=True, sharey=True)
+    handles, labels = [], []
+
+    for ax, lam_val in zip(axes.ravel(), lams):
+        dfl_lb = _for_lb(_tc(dfl_results_store[(delta_val, lam_val)]))
+        mdd_lb = _for_lb(_tc(all_results_pto_mdd))
+        mvo_lb = _for_lb(_tc(all_results_mvo))
+        dmv_lb = _for_lb(_tc((dfl_mvo_store or {}).get((delta_val, lam_val), [])))
+
+        dfl_colors = [DFL_CMAP(v) for v in np.linspace(0.4, 0.9, max(len(dfl_lb), 1))]
+        mdd_colors = [MDD_CMAP(v) for v in np.linspace(0.4, 0.9, max(len(mdd_lb), 1))]
+        mvo_colors = [MVO_CMAP(v) for v in np.linspace(0.5, 0.9, max(len(mvo_lb), 1))]
+
+        if full_dates is not None and test_start_idx is not None:
+            eq_len = len(build_equity_curve(dfl_lb[0][0]))
+            xs = full_dates[test_start_idx:test_start_idx + eq_len]
+        else:
+            xs = None
+
+        def _draw(pairs, colors, lw, ls):
+            for (res, lbl), color in zip(pairs, colors):
+                eq = build_equity_curve(res)
+                x  = xs[:len(eq)] if xs is not None else np.arange(len(eq))
+                ax.plot(x, eq, color=color, linewidth=lw, linestyle=ls,
+                        label=_fmt_n1_pct(lbl))
+
+        _draw(dfl_lb, dfl_colors, 1.5, "-")
+        _draw(mdd_lb, mdd_colors, 1.5, "--")
+        _draw(mvo_lb, mvo_colors, 2.0, ":")
+        for res, lbl in dmv_lb:
+            c, s = _bench_style(lbl)
+            _draw([(res, lbl)], [c], 1.8, s)
+        if bench_store is not None:
+            for blbl, bres in bench_store.items():
+                if not blbl.startswith("EW") and f"LB={lb}" not in blbl:
+                    continue
+                c, s = _bench_style(blbl)
+                _draw([(bres, blbl)], [c], 1.8, s)
+
+        ax.set_title(f"$\\lambda$ = {lam_val}", fontsize=11.5)
+        ax.grid(True, alpha=0.3)
+        for sp in ("top", "right"):
+            ax.spines[sp].set_visible(False)
+        if not handles:
+            handles, labels = ax.get_legend_handles_labels()
+
+    for ax in axes.ravel()[len(lams):]:
+        ax.set_visible(False)
+    for ax in axes[:, 0]:
+        ax.set_ylabel("Portfolio Value")
+    for ax in axes[1, :]:
+        ax.set_xlabel("Date" if full_dates is not None else "Trading Days")
+        if full_dates is not None:
+            import matplotlib.dates as mdates
+            ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y"))
+            ax.xaxis.set_major_locator(mdates.YearLocator())
+            plt.setp(ax.xaxis.get_majorticklabels(), rotation=0)
+
+    tc_str = f"  |  TC={int(round(tc_rate*10000))}bps" if tc_rate > 0 else ""
+    fig.suptitle(f"Overall Comparison across Loss Weights "
+                 f"({N_STOCKS} Industries, Lookback = {lb}){tc_str}",
+                 fontsize=13.5, fontweight="bold")
+    fig.legend(handles, labels, loc="lower center", ncol=5, fontsize=8.5,
+               frameon=False, bbox_to_anchor=(0.5, -0.02))
+    fig.tight_layout(rect=[0, 0.04, 1, 0.96])
+
+    tc_suffix = f"_tc{int(round(tc_rate*10000))}bps" if tc_rate > 0 else ""
+    h_tag     = f"_h{horizon}" if horizon is not None else ""
+    path = os.path.join(
+        PLOT_DIR,
+        f"overall_lamgrid_{N_STOCKS}_inds{h_tag}_LB{lb}{tc_suffix}.png")
+    fig.savefig(path, bbox_inches="tight", dpi=450)
+    print(f"  saved: {path}")
+
+    if show:
+        plt.show()
+    else:
+        plt.close(fig)
+    return path

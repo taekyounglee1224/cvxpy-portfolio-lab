@@ -36,11 +36,11 @@ import pandas as pd
 from benchmarks import attach_date_idx
 from carryforward import apply_carryforward, parse_lb
 from performance import apply_tc, build_equity_curve, compute_performance
-from plot_utils import plot_overall_comparison
+from plot_utils import plot_lambda_grid, plot_overall_comparison
 
 CKPT_DIR = "./checkpoint"
 RSLT_DIR = "./results"
-PLOT_DIR = "./plots/overall_plot"
+PLOT_ROOT = "./plots/overall_plot"      # figures land in {PLOT_ROOT}/{N}_inds/
 
 # -- fixed experiment grid, mirroring the notebooks --
 REBAL, VAL_YEARS, TEST_YEARS, N_FOLDS = 21, 5, 1, 8
@@ -187,10 +187,11 @@ def main():
     universes = args.data or [10, 30]
     tc_rates  = args.tc if args.tc is not None else [0.0]
     horizon   = args.horizon
-    os.makedirs(PLOT_DIR, exist_ok=True)
 
     ok = True
     for n_stocks in universes:
+        plot_dir = os.path.join(PLOT_ROOT, f"{n_stocks}_inds")
+        os.makedirs(plot_dir, exist_ok=True)
         full_np, full_dates = load_universe(n_stocks)
         folds  = make_folds(full_np, full_dates, horizon)
         stores = build_stores(n_stocks, horizon, full_np, folds)
@@ -202,18 +203,27 @@ def main():
               f"PTO-MDD {len(pto_mdd_idx)} | PTO-MVO {len(mvo_idx)} | "
               f"benchmarks {len(bench_store)}")
 
+        common = dict(full_dates=full_dates,
+                      test_start_idx=folds[0]["test_start_idx"],
+                      bench_store=bench_store, dfl_mvo_store=dfl_mvo_idx,
+                      full_np=full_np, REBAL=REBAL,
+                      horizon=horizon, show=False)
+
         for tc in tc_rates:
             ok &= verify(n_stocks, horizon, stores, full_np, tc)
+
+            # one figure per lambda
             plot_overall_comparison(
                 dfl_store_cf, pto_mdd_idx, mvo_idx,
                 DELTA_LIST, LAM_LIST, LOOKBACK_LIST,
-                n_stocks, PLOT_DIR,
-                full_dates=full_dates,
-                test_start_idx=folds[0]["test_start_idx"],
-                tc_rate=tc, bench_store=bench_store,
-                dfl_mvo_store=dfl_mvo_idx,
-                full_np=full_np, REBAL=REBAL,
-                horizon=horizon, show=False)
+                n_stocks, plot_dir, tc_rate=tc, **common)
+
+            # all four lambdas on one figure, per lookback
+            for lb in LOOKBACK_LIST:
+                plot_lambda_grid(
+                    dfl_store_cf, pto_mdd_idx, mvo_idx,
+                    DELTA_LIST[0], LAM_LIST, lb,
+                    n_stocks, plot_dir, tc_rate=tc, **common)
 
     print("\nall figures verified" if ok else "\nMISMATCHES FOUND - see above")
     return 0 if ok else 1
