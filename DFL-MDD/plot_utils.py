@@ -115,13 +115,15 @@ def plot_overall_comparison(dfl_results_store, all_results_pto_mdd, all_results_
                             DELTA_LIST, LAM_LIST, LOOKBACK_LIST,
                             N_STOCKS, PLOT_DIR,
                             full_dates=None, test_start_idx=None,
-                            tc_rate=0.0, bench_store=None):
+                            tc_rate=0.0, bench_store=None,
+                            dfl_mvo_store=None, full_np=None, REBAL=None,
+                            horizon=None, show=True):
     """
     Parameters
     ----------
     dfl_results_store    : dict  {(delta, lam): all_results_dfl_mdd}
     all_results_pto_mdd  : list of (results, label)
-    all_results_mvo      : list of (results, label)
+    all_results_mvo      : list of (results, label)   PTO-MVO
     DELTA_LIST, LAM_LIST : hyperparameter lists
     LOOKBACK_LIST        : list of lookback values
     N_STOCKS             : int   used in the output filename
@@ -131,6 +133,14 @@ def plot_overall_comparison(dfl_results_store, all_results_pto_mdd, all_results_
                                 "hist-MVO (LB=252)": res, ...}
                            EW does not depend on LB and appears on every LB panel;
                            the others are matched on 'LB={lb}' in the label.
+    dfl_mvo_store        : dict or None  {(delta, lam): [(results, label), ...]}
+                           DFL-MVO depends on lambda, so it cannot be passed
+                           through bench_store; it is matched on 'LB={lb}'.
+    full_np, REBAL       : passed to apply_tc so that transaction costs use the
+                           drift-adjusted turnover, matching the result tables.
+    horizon              : int or None. When given, the filename carries an
+                           'h{horizon}' tag.
+    show                 : call plt.show() after each figure.
     """
     DFL_CMAP = plt.cm.Blues
     MDD_CMAP = plt.cm.Greens
@@ -158,11 +168,18 @@ def plot_overall_comparison(dfl_results_store, all_results_pto_mdd, all_results_
                 print(f"  skipped: delta={delta_val}, lam={lam_val} (no checkpoint)")
                 continue
 
-            # apply transaction cost
-            raw_dfl = dfl_results_store[(delta_val, lam_val)]
-            all_results_dfl_mdd = [(apply_tc(r, tc_rate), l) for r, l in raw_dfl]
-            pto_mdd_all  = [(apply_tc(r, tc_rate), l) for r, l in all_results_pto_mdd]
-            all_results_mvo_tc = [(apply_tc(r, tc_rate), l) for r, l in all_results_mvo]
+            # apply transaction cost (drift-adjusted when full_np/REBAL are given,
+            # so the legend matches the numbers in the result tables)
+            def _tc(pairs):
+                if not tc_rate:
+                    return list(pairs)
+                return [(apply_tc(r, tc_rate, full_np=full_np, REBAL=REBAL), l)
+                        for r, l in pairs]
+
+            all_results_dfl_mdd = _tc(dfl_results_store[(delta_val, lam_val)])
+            pto_mdd_all         = _tc(all_results_pto_mdd)
+            all_results_mvo_tc  = _tc(all_results_mvo)
+            dfl_mvo_tc          = _tc((dfl_mvo_store or {}).get((delta_val, lam_val), []))
 
             # ---- one panel per lookback ----
             for lb in LOOKBACK_LIST:
@@ -201,6 +218,15 @@ def plot_overall_comparison(dfl_results_store, all_results_pto_mdd, all_results_
                     dd_last, xs_last = _plot_item(ax_pnl, ax_dd, res, lbl, color,
                                                   linewidth=2.0, linestyle=":", x_vals=x_vals)
 
+                # ---- overlay DFL-MVO (lambda-dependent, so not in bench_store) ----
+                for res, lbl in dfl_mvo_tc:
+                    if f"LB={lb}" not in lbl:
+                        continue
+                    bcolor, bstyle = _bench_style(lbl)
+                    dd_last, xs_last = _plot_item(
+                        ax_pnl, ax_dd, res, lbl, bcolor,
+                        linewidth=1.8, linestyle=bstyle, x_vals=x_vals)
+
                 # ---- overlay benchmarks (EW / GMV / hist-MVO) ----
                 if bench_store is not None:
                     for blbl, bres in bench_store.items():
@@ -217,7 +243,12 @@ def plot_overall_comparison(dfl_results_store, all_results_pto_mdd, all_results_
                 ax_pnl.set_title(
                     f"Overall Comparison ({N_STOCKS} Industries, Lookback = {lb}){tc_str}")
                 ax_pnl.set_ylabel("Portfolio Value")
-                ax_pnl.legend(loc="upper left", fontsize=8.0)
+                # with every model and benchmark overlaid the legend runs long,
+                # so split it into two columns
+                n_entries = len(ax_pnl.get_lines())
+                ax_pnl.legend(loc="upper left", fontsize=7.5,
+                              ncol=2 if n_entries > 8 else 1,
+                              framealpha=0.9, borderpad=0.4, labelspacing=0.3)
 
                 # small horizontal margin
                 if x_vals is not None:
@@ -248,10 +279,14 @@ def plot_overall_comparison(dfl_results_store, all_results_pto_mdd, all_results_
                 plt.tight_layout()
 
                 tc_suffix = f"_tc{int(round(tc_rate*10000))}bps" if tc_rate > 0 else ""
+                h_tag     = f"_h{horizon}" if horizon is not None else ""
                 plot_path = os.path.join(
                     PLOT_DIR,
-                    f"overall_{N_STOCKS}_inds_LB{lb}_{lam_val}{tc_suffix}.png")
+                    f"overall_{N_STOCKS}_inds{h_tag}_LB{lb}_{lam_val}{tc_suffix}.png")
                 plt.savefig(plot_path, bbox_inches="tight", dpi=450)
                 print(f"  saved: {plot_path}")
 
-                plt.show()
+                if show:
+                    plt.show()
+                else:
+                    plt.close(fig)
