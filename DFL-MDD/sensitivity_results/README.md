@@ -118,8 +118,17 @@ whether the model an investor would actually deploy, with one budget chosen,
 beats it; each comparison is matched on everything it shares (lookback and
 lambda for DFL-MVO, lookback and budget for PTO-MDD, lookback alone for the
 rest), giving 2 LB x 4 lambda x 4 n1 x 6 comparisons. Columns add `LB`, `lam`,
-`n1` and `comparison` to the ones above. Regenerate with
+`n1` and `comparison` to the ones above, and every number is rounded to four
+decimals. Regenerate with
 `python analyze_mdd_ttest_by_n1.py --horizon {126,252}`.
+
+These files mark significance differently from the pooled tables above:
+
+| Value | Meaning |
+| --- | --- |
+| `O` | the one-sided test rejects, so DFL-MDD is significantly lower |
+| `X` | the reverse one-sided test rejects, so the comparison is lower |
+| empty | neither |
 
 The budget-level view is what shows the constraint working: at 10 industries and
 alpha = 0.05 the count of cells favouring DFL-MDD minus those favouring the

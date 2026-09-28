@@ -44,13 +44,20 @@ RSLT_DIR = "./results"
 ALPHAS   = (0.10, 0.05, 0.01)
 
 
+ROUND = 4
+
+
 def verdict(p_low, p_high, alpha):
-    """'+' DFL-MDD better, '-' comparison better, '=' neither, at this alpha."""
+    """
+    'O' the one-sided test rejects, so DFL-MDD is significantly lower
+    'X' the reverse one-sided test rejects, so the comparison is lower
+    ''  neither
+    """
     if p_low < alpha:
-        return "+"
+        return "O"
     if p_high < alpha:
-        return "-"
-    return "="
+        return "X"
+    return ""
 
 
 def per_date(pairs, common):
@@ -138,7 +145,7 @@ def analyse(n_stocks, horizon, stores, common):
 def summarise(df, alpha=0.05):
     """How many (LB, lambda) cells favour DFL-MDD, per budget and comparison."""
     col = f"significant({alpha:.2f})"
-    tab = (df.assign(win=df[col].eq("+"), loss=df[col].eq("-"))
+    tab = (df.assign(win=df[col].eq("O"), loss=df[col].eq("X"))
              .groupby(["comparison", "n1"])
              .agg(wins=("win", "sum"), losses=("loss", "sum"), cells=("win", "size")))
     tab["win_rate"] = (tab["wins"] / tab["cells"]).round(3)
@@ -163,6 +170,8 @@ def main():
         common = common_dates(stores)
 
         df = analyse(n_stocks, args.horizon, stores, common)
+        num = df.select_dtypes("number").columns.difference(["N", "H", "LB", "n"])
+        df[num] = df[num].round(ROUND)
         out = args.out or f"{RSLT_DIR}/{n_stocks}_inds_h{args.horizon}_mdd_ttest_by_n1.csv"
         df.to_csv(out, index=False, encoding="utf-8-sig")
 
