@@ -131,7 +131,7 @@ def analyse(n_stocks, horizon, stores, common):
                         wp = float("nan")
 
                     row = {"N": n_stocks, "H": horizon, "LB": lb, "lam": lam,
-                           "n1": n1, "comparison": name, "n": int(len(x)),
+                           "d_bar": n1, "comparison": name, "n": int(len(x)),
                            "DFL-MDD": x.mean(), "other": y.mean(),
                            "difference": diff.mean(),
                            "cohen_d": abs(diff.mean() / diff.std(ddof=1)),
@@ -143,10 +143,10 @@ def analyse(n_stocks, horizon, stores, common):
 
 
 def summarise(df, alpha=0.05):
-    """How many (LB, lambda) cells favour DFL-MDD, per budget and comparison."""
+    """How many (LB, lambda) cells favour DFL-MDD, per limit and comparison."""
     col = f"significant({alpha:.2f})"
     tab = (df.assign(win=df[col].eq("O"), loss=df[col].eq("X"))
-             .groupby(["comparison", "n1"])
+             .groupby(["comparison", "d_bar"])
              .agg(wins=("win", "sum"), losses=("loss", "sum"), cells=("win", "size")))
     tab["win_rate"] = (tab["wins"] / tab["cells"]).round(3)
     return tab
@@ -159,7 +159,7 @@ def main():
     ap.add_argument("--alpha", type=float, default=0.05)
     ap.add_argument("--out", default=None,
                     help="output path; the default is "
-                         "results/{N}_inds_h{H}_mdd_ttest_by_n1.csv per universe")
+                         "results/{N}_inds_h{H}_mdd_ttest_by_dbar.csv per universe")
     args = ap.parse_args()
 
     os.makedirs(RSLT_DIR, exist_ok=True)
@@ -172,7 +172,7 @@ def main():
         df = analyse(n_stocks, args.horizon, stores, common)
         num = df.select_dtypes("number").columns.difference(["N", "H", "LB", "n"])
         df[num] = df[num].round(ROUND)
-        out = args.out or f"{RSLT_DIR}/{n_stocks}_inds_h{args.horizon}_mdd_ttest_by_n1.csv"
+        out = args.out or f"{RSLT_DIR}/{n_stocks}_inds_h{args.horizon}_mdd_ttest_by_dbar.csv"
         df.to_csv(out, index=False, encoding="utf-8-sig")
 
         print(f"\n{'='*78}")

@@ -149,7 +149,7 @@ def main():
                     res = attach_date_idx(ck["fold_results_map"][key], folds,
                                           lb, args.horizon, REBAL)
                     failed = failed_global(ck["infeas_map"].get(key, []))
-                    label  = f"DFL-MDD (LB={lb}, n1={n1})"
+                    label  = f"DFL-MDD (LB={lb}, d_bar={n1})"
 
                     for tag, hold, sel in (("monthly",   REBAL,  None),
                                            ("quarterly", QREBAL, 3)):
@@ -172,7 +172,7 @@ def main():
                                                     * 252.0 / span)
                             rows.append({"N": n_stocks, "H": args.horizon,
                                          "schedule": tag, "hold_days": hold,
-                                         "LB": lb, "lam": lam, "n1": n1,
+                                         "LB": lb, "lam": lam, "d_bar": n1,
                                          "tc_bps": int(round(tc * 1e4)),
                                          "n_windows": len(built),
                                          "n_carryforward": n_sub, **perf})
