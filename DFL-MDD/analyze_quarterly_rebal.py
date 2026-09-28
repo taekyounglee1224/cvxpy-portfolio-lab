@@ -181,8 +181,11 @@ def main():
         num = df.select_dtypes("number").columns.difference(
             ["N", "H", "hold_days", "LB", "tc_bps", "n_windows", "n_carryforward"])
         df[num] = df[num].round(4)
+        # the monthly rows exist to anchor the printed comparison; the file itself
+        # carries the quarterly schedule only, since the monthly tables are
+        # published separately and are built under a fixed 21-day hold
         out = f"{RSLT_DIR}/{n_stocks}_inds_h{args.horizon}_quarterly_rebal.csv"
-        df.to_csv(out, index=False, encoding="utf-8-sig")
+        df[df.schedule == "quarterly"].to_csv(out, index=False, encoding="utf-8-sig")
 
         print(f"\n{'='*84}")
         print(f"  {n_stocks} industries, H={args.horizon}  "
