@@ -40,7 +40,7 @@ $$
 \end{aligned}
 $$
 
-`u_k` tracks the running maximum of the cumulative return path, so `u_k − ŷ_kᵀx ≤ d̄C` caps the drawdown at any point within the horizon. `Σ = LLᵀ` is the Cholesky factor of the sample covariance, kept as a parameter so the problem stays DPP-compliant.
+`u_k` tracks the running maximum of the cumulative return path, so `u_k − ŷ_kᵀx ≤ d̄` caps the drawdown at any point within the horizon. `Σ = LLᵀ` is the Cholesky factor of the sample covariance, kept as a parameter so the problem stays DPP-compliant.
 
 ---
 
