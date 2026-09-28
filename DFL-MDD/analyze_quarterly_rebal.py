@@ -177,6 +177,40 @@ def main():
                                          "n_windows": len(built),
                                          "n_carryforward": n_sub, **perf})
 
+        # ---- PTO-MDD: MSE-trained, so it has no lambda and no carry-forward ----
+        prows = []
+        ckp = _ck(f"./checkpoint/pto_mdd_{n_stocks}_inds_h{args.horizon}"
+                  f"_d{DELTA_LIST[0]}_{SOLVER}.pkl")
+        if ckp is not None:
+            for lb in LOOKBACK_LIST:
+                for n1 in N1_LIST:
+                    if (lb, n1) not in ckp["fold_results_map"]:
+                        continue
+                    res = attach_date_idx(ckp["fold_results_map"][(lb, n1)], folds,
+                                          lb, args.horizon, REBAL)
+                    label = f"PTO-MDD (LB={lb}, d_bar={n1})"
+                    for tag, hold, sel in (("monthly",   REBAL,  None),
+                                           ("quarterly", QREBAL, 3)):
+                        if sel is None:
+                            sub, keep = res, list(range(len(res)))
+                        else:
+                            sub, keep = subsample(res, sel)
+                        holds = holding_days(sub, hold)
+                        built, _ = rebuild(sub, keep, set(), full_np, lb, holds)
+                        span = sum(holds)
+                        for tc in TC_RATES:
+                            r_tc = (apply_tc(built, tc, full_np=full_np, REBAL=hold)
+                                    if tc else built)
+                            perf = compute_performance(r_tc, label,
+                                                       full_np=full_np, REBAL=hold)
+                            perf["Turnover_ann"] = (perf["Turnover"] * len(built)
+                                                    * 252.0 / span)
+                            prows.append({"N": n_stocks, "H": args.horizon,
+                                          "schedule": tag, "hold_days": hold,
+                                          "LB": lb, "d_bar": n1,
+                                          "tc_bps": int(round(tc * 1e4)),
+                                          "n_windows": len(built), **perf})
+
         df = pd.DataFrame(rows)
         num = df.select_dtypes("number").columns.difference(
             ["N", "H", "hold_days", "LB", "tc_bps", "n_windows", "n_carryforward"])
@@ -186,6 +220,20 @@ def main():
         # published separately and are built under a fixed 21-day hold
         out = f"{RSLT_DIR}/{n_stocks}_inds_h{args.horizon}_quarterly_rebal.csv"
         df[df.schedule == "quarterly"].to_csv(out, index=False, encoding="utf-8-sig")
+
+        # PTO-MDD goes to its own file: it has no lambda, so putting it in the
+        # same table would leave that column empty on a third of the rows
+        outs = [out]
+        if prows:
+            dp = pd.DataFrame(prows)
+            npc = dp.select_dtypes("number").columns.difference(
+                ["N", "H", "hold_days", "LB", "tc_bps", "n_windows"])
+            dp[npc] = dp[npc].round(4)
+            outp = (f"{RSLT_DIR}/{n_stocks}_inds_h{args.horizon}"
+                    f"_quarterly_rebal_pto_mdd.csv")
+            dp[dp.schedule == "quarterly"].to_csv(outp, index=False,
+                                                  encoding="utf-8-sig")
+            outs.append(outp)
 
         print(f"\n{'='*84}")
         print(f"  {n_stocks} industries, H={args.horizon}  "
@@ -197,7 +245,8 @@ def main():
         print(piv.to_string())
         nw = df.groupby("schedule")[["n_windows", "n_carryforward"]].mean().round(1)
         print(f"\n  windows and fallbacks per configuration:\n{nw.to_string()}")
-        print(f"\n  saved: {out}")
+        for o in outs:
+            print(f"  saved: {o}")
     return 0
 
 
