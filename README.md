@@ -32,7 +32,7 @@ $$
   & \hat{y}_N^\top x - \frac{\delta}{2} \lVert L^\top x \rVert^2 \\
 \text{s.t.} \quad
   & u_0 = 0 \\
-  & u_k - \hat{y}_k^\top x \le \bar{d} C, \quad k = 1, \dots, N \\
+  & u_k - \hat{y}_k^\top x \le \bar{d}, \quad k = 1, \dots, N \\
   & u_k \ge \hat{y}_k^\top x, \quad k = 1, \dots, N \\
   & u_k \ge u_{k-1}, \quad k = 1, \dots, N \\
   & x_{\min} \le x_i \le x_{\max}, \quad i = 1, \dots, m \\
