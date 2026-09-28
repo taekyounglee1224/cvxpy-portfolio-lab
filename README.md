@@ -102,13 +102,36 @@ DFL-MDD/
 ├── launch_dfl_*.py                    worker-pool launcher (shards by λ, LB, n₁)
 ├── merge_ckpt.py                      merge sharded checkpoints
 ├── run_xmax_sweep.py                  weight-cap sweep driver
+├── make_overall_plots.py              overall-comparison figures, verified against the tables
 │
 ├── 10_inds.ipynb / 30_inds.ipynb      main analysis
 ├── 10_inds_wcap.ipynb                 weight-cap analysis
 │
-├── results/   plots/                  outputs (checkpoints and logs stay local)
+├── results/                           result tables (CSV)
+├── plots/
+│   ├── overall_plot/{10,30}_inds/     every model and benchmark on one panel
+│   ├── mdd_dist/  model_plot/  n1_monotonicity/  asset_allocation/  xmax/
+│   └── ...                            (checkpoints, logs and weights stay local)
 └── sensitivity_results/               packaged sensitivity analysis (see its README)
 ```
+
+### Overall-comparison figures
+
+`make_overall_plots.py` draws DFL-MDD (four drawdown budgets), PTO-MDD (four budgets), DFL-MVO, PTO-MVO, EW, GMV and hist-MVO on a single panel. Each model family carries its own hue and the budgets within a family are separated by lightness.
+
+```bash
+python make_overall_plots.py --data 10 --data 30 --horizon 126 \
+       --tc 0 --tc 0.0005 --tc 0.001 --tc 0.002 --tc 0.004
+```
+
+Two figure types are produced per universe, into `plots/overall_plot/{N}_inds/`:
+
+| File | Contents |
+| --- | --- |
+| `overall_{N}_inds_h{H}_LB{lb}_{λ}[_tc{c}bps].png` | one loss weight, equity curve over drawdown; the legend carries MDD and Calmar |
+| `overall_lamgrid_{N}_inds_h{H}_LB{lb}[_tc{c}bps].png` | all four loss weights as a 2×2 grid, one shared legend; use this to compare λ at a glance |
+
+The stores are assembled exactly as the notebooks assemble them for the result tables — carry-forward on DFL-MDD only, drift-adjusted turnover for transaction costs — and every legend value is checked against `results/{N}_inds_h{H}_tc_full_cf.csv` before the figure is written. The run aborts with a report if any value disagrees.
 
 ### Running
 
