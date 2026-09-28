@@ -87,7 +87,7 @@ DFL-MDD/
 └── check_dd_duration.ipynb            drawdown-duration evidence for the horizon choice
 ```
 
-Everything a run produces — `checkpoint/`, `logs/`, `weights/`, `results/`, `plots/` and `sensitivity_results/` — stays out of the repository and is recreated by the commands below.
+Everything a run produces — `checkpoint/`, `logs/`, `weights/`, `results/`, `plots/` and `sensitivity_results/` — stays out of the repository.
 
 ### Input data
 
@@ -125,38 +125,6 @@ dfl_mdd_{N}_inds_h{H}[_xm{cap}][_LB{lb}][_n1{d̄}]_d{δ}_l{λ}_{solver}.pkl
 ```
 
 with bracketed tags present only for non-default values, so a run can be resumed or extended without recomputing what already exists.
-
-### Analysis
-
-With the checkpoints in place, these commands regenerate every table and figure reported in the study.
-
-```bash
-# result tables and the overall-comparison figures (both grids, both metrics)
-python make_overall_plots.py --data 10 --data 30 --horizon 126 \
-       --tc 0 --tc 0.0005 --tc 0.001 --tc 0.002 --tc 0.004
-python make_overall_plots.py --data 10 --data 30 --horizon 252 \
-       --tc 0 --tc 0.0005 --tc 0.001 --tc 0.002 --tc 0.004
-
-# per-window drawdown tests, one per drawdown limit
-python analyze_mdd_ttest_by_n1.py --horizon 126
-python analyze_mdd_ttest_by_n1.py --horizon 252
-
-# does realized risk order in the limit?
-python analyze_n1_monotonicity.py
-python plot_n1_monotonicity.py
-```
-
-`make_overall_plots.py` draws DFL-MDD (four drawdown limits), PTO-MDD (four limits), DFL-MVO, PTO-MVO, EW, GMV and hist-MVO on a single panel. Each model family carries its own hue and the limits within a family are separated by lightness. Two figure types are produced per universe, into `plots/overall_plot/{N}_inds/`:
-
-| File | Contents |
-| --- | --- |
-| `overall_{N}_inds_h{H}_LB{lb}_{λ}[_tc{c}bps].png` | one loss weight, equity curve over drawdown; the legend carries MDD and Calmar |
-| `overall_lamgrid_{N}_inds_h{H}_LB{lb}[_tc{c}bps].png` | all four loss weights as a 2×2 grid of equity curves |
-| `drawdown_lamgrid_{N}_inds_h{H}_LB{lb}[_tc{c}bps].png` | the same grid drawn as drawdown |
-
-Every legend value is checked against `results/{N}_inds_h{H}_tc_full_cf.csv` before a figure is written, and the run aborts with a report if any value disagrees.
-
-The notebooks (`10_inds.ipynb`, `30_inds.ipynb`, `10_inds_wcap.ipynb`, `check_dd_duration.ipynb`) drive the same modules interactively and additionally produce the benchmark checkpoints, the infeasibility diagnostics, the δ sweep and the transaction-cost tables.
 
 ---
 
