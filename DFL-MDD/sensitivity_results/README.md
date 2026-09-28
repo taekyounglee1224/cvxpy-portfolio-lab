@@ -34,10 +34,10 @@ The weight-cap experiment was intentionally skipped for 30 industries.
 sensitivity_results/
   README.md
   10_inds/
-    results/     33 CSV
+    results/     35 CSV
     plots/       71 PNG
   30_inds/
-    results/     17 CSV
+    results/     19 CSV
     plots/       63 PNG
   docs/
     delta_analysis.md              in-depth analysis of the delta sensitivity
@@ -104,11 +104,27 @@ the same (percent).
 | --- | --- | --- |
 | `{N}_inds_h126_mdd_ttest.csv` | H=126, one-sided paired t-test on per-window MDD | 48 |
 | `{N}_inds_h252_mdd_ttest.csv` | H=252, same | 48 |
+| `{N}_inds_h{H}_mdd_ttest_by_n1.csv` | the same test with the drawdown budget held fixed | 192 |
 
 - **H0**: mean drawdown of DFL-MDD >= comparison model. **H1**: strictly less.
 - Paired over rebalancing dates common to all models (H=126: n=91, H=252: n=85).
 - Three significance levels are reported side by side: 0.10, 0.05, 0.01.
 - The Wilcoxon signed-rank p-value is reported alongside.
+
+The two file families answer different questions. `*_mdd_ttest.csv` averages the
+four budgets into one DFL-MDD series before pairing, so it asks whether the
+family beats a benchmark. `*_mdd_ttest_by_n1.csv` keeps n1 fixed, so it asks
+whether the model an investor would actually deploy, with one budget chosen,
+beats it; each comparison is matched on everything it shares (lookback and
+lambda for DFL-MVO, lookback and budget for PTO-MDD, lookback alone for the
+rest), giving 2 LB x 4 lambda x 4 n1 x 6 comparisons. Columns add `LB`, `lam`,
+`n1` and `comparison` to the ones above. Regenerate with
+`python analyze_mdd_ttest_by_n1.py --horizon {126,252}`.
+
+The budget-level view is what shows the constraint working: at 10 industries and
+alpha = 0.05 the count of cells favouring DFL-MDD minus those favouring the
+comparison falls from +18 at n1 = 0.1 to -2 at n1 = 0.4. The aggregate eight-year
+drawdown shows no such ordering (see `docs/dd_constraint_monotonicity.md`).
 
 Columns:
 
