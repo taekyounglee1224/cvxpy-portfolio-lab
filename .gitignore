@@ -1,12 +1,15 @@
 .claude/
 
-# build artifact, regenerable from sensitivity_results/
+# build artifact, regenerable from the result tables
 *.zip
 
-# local-only: large or regenerable
+# local-only: produced by a run, recreated by the commands in the README
 DFL-MDD/checkpoint/
 DFL-MDD/logs/
 DFL-MDD/weights/
+DFL-MDD/results/
+DFL-MDD/plots/
+DFL-MDD/sensitivity_results/
 
 # python bytecode
 __pycache__/
