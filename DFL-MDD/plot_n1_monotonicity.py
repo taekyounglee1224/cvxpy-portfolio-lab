@@ -52,9 +52,9 @@ def panel_levels(ax, blocks):
                     marker="o", ms=6, lw=1.8, capsize=4,
                     color=H_COL[H], label=f"H={H}")
     ax.set_xticks(N1_LIST)
-    ax.set_xlabel("drawdown budget  $n_1$")
+    ax.set_xlabel("drawdown limit  $\\bar{d}$")
     ax.set_ylabel("mean per-window drawdown (%)")
-    ax.set_title("(a)  Realized drawdown rises with the budget",
+    ax.set_title("(a)  Realized drawdown rises with the limit",
                  fontsize=10.5, loc="left")
     ax.legend(fontsize=9, frameon=False, title="within-subject 95% CI",
               title_fontsize=8)
@@ -73,12 +73,12 @@ def panel_kde(ax, long126, trim_pct=5):
         d = long126[long126.n1 == n1].M_real.values * 100
         d = d[d <= hi]
         y = stats.gaussian_kde(d)(grid)
-        ax.plot(grid, y, lw=2.2, color=N1_COL[n1], label=f"$n_1$ = {n1}")
+        ax.plot(grid, y, lw=2.2, color=N1_COL[n1], label=f"$\\bar{{d}}$ = {n1}")
     ax.set_xlim(0, hi)
     ax.set_ylim(bottom=0)
     ax.set_xlabel("per-window drawdown (%)")
     ax.set_ylabel("density")
-    ax.set_title(f"(b)  Distribution by budget  (H=126, top {trim_pct}% trimmed)",
+    ax.set_title(f"(b)  Distribution by limit  (H=126, top {trim_pct}% trimmed)",
                  fontsize=10.5, loc="left")
     ax.legend(fontsize=9, frameon=False)
 
@@ -119,14 +119,14 @@ def panel_heatmap(ax, blocks, fig):
                         color="#111" if abs(M[i, j]) < vmax * .6 else "white")
     ax.set_xticks(range(k), [str(v) for v in N1_LIST])
     ax.set_yticks(range(k), [str(v) for v in N1_LIST])
-    ax.set_xlabel("drawdown budget  $n_1$")
-    ax.set_ylabel("drawdown budget  $n_1$")
-    ax.set_title("(c)  Paired t-statistic, looser vs tighter budget\n"
+    ax.set_xlabel("drawdown limit  $\\bar{d}$")
+    ax.set_ylabel("drawdown limit  $\\bar{d}$")
+    ax.set_title("(c)  Paired t-statistic, looser vs tighter limit\n"
                  "      lower left: H=126     upper right: H=252",
                  fontsize=10.5, loc="left")
     ax.grid(False)
     cb = fig.colorbar(im, ax=ax, fraction=0.040, pad=0.03)
-    cb.set_label("t  (positive = looser budget has larger drawdown)", fontsize=8)
+    cb.set_label("t  (positive = looser limit has larger drawdown)", fontsize=8)
     cb.ax.tick_params(labelsize=8)
 
 
@@ -143,7 +143,7 @@ def panel_slack(ax, long126):
     ax2.tick_params(axis="y", labelcolor="#B23A48", labelsize=8.5)
     ax2.set_ylim(0, max(viol) * 3.4 + 1)
 
-    ax.plot(x, x, color="#9AA5B1", ls="--", lw=1.5, label="budget  $n_1$")
+    ax.plot(x, x, color="#9AA5B1", ls="--", lw=1.5, label="limit  $\\bar{d}$")
     ax.fill_between(x, mean, x, color="#9AA5B1", alpha=0.10)
     ax.plot(x, p90, marker="s", ms=5, lw=1.7, color="#E07A3F",
             label="realized p90")
@@ -154,9 +154,9 @@ def panel_slack(ax, long126):
     h2, l2 = ax2.get_legend_handles_labels()
     ax.legend(h1 + h2, l1 + l2, fontsize=9, frameon=False, loc="upper left")
     ax.set_xticks(x)
-    ax.set_xlabel("drawdown budget  $n_1$ (%)")
+    ax.set_xlabel("drawdown limit  $\\bar{d}$ (%)")
     ax.set_ylabel("drawdown (%)")
-    ax.set_title("(d)  The budget is slack: realized risk sits far below it  (H=126)",
+    ax.set_title("(d)  The limit is slack: realized risk sits far below it  (H=126)",
                  fontsize=10.5, loc="left")
 
 
