@@ -18,7 +18,8 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as mtick
 from performance import build_equity_curve, compute_performance, apply_tc
 
-__all__ = ["plot_multi_pnl", "plot_overall_comparison", "plot_lambda_grid"]
+__all__ = ["plot_multi_pnl", "plot_overall_comparison", "plot_lambda_grid",
+           "plot_model_drawdown"]
 
 
 # ---- shared styling, so the single-lambda and the four-lambda figures match ----
@@ -439,4 +440,109 @@ def plot_lambda_grid(dfl_results_store, all_results_pto_mdd, all_results_mvo,
         plt.show()
     else:
         plt.close(fig)
+    return path
+
+
+def plot_model_drawdown(dfl_results_store, all_results_pto_mdd, all_results_mvo,
+                        delta_val, lam_val, lb, N_STOCKS, PLOT_DIR,
+                        full_dates=None, test_start_idx=None,
+                        tc_rate=0.0, dfl_mvo_store=None,
+                        full_np=None, REBAL=None, horizon=None, show=True):
+    """
+    Drawdown of the four models on one panel, for a single loss weight and
+    lookback: DFL-MDD and PTO-MDD at each drawdown limit, plus DFL-MVO and
+    PTO-MVO, ten curves in all. Benchmarks are left out so the comparison is
+    between the models alone.
+
+    The legend carries each curve's full-period maximum drawdown, since that is
+    the number the panel is read for, and is ordered worst-first so it matches
+    the vertical order of the curves at the trough.
+    """
+    os.makedirs(PLOT_DIR, exist_ok=True)
+
+    def _tc(pairs):
+        if not tc_rate:
+            return list(pairs)
+        return [(apply_tc(r, tc_rate, full_np=full_np, REBAL=REBAL), l)
+                for r, l in pairs]
+
+    def _for_lb(pairs):
+        return [(r, l) for r, l in pairs if f"LB={lb}" in l]
+
+    key = (delta_val, lam_val)
+    if key not in dfl_results_store:
+        print(f"  skipped: lam={lam_val} (no checkpoint)")
+        return None
+
+    dfl_lb = _for_lb(_tc(dfl_results_store[key]))
+    mdd_lb = _for_lb(_tc(all_results_pto_mdd))
+    mvo_lb = _for_lb(_tc(all_results_mvo))
+    dmv_lb = _for_lb(_tc((dfl_mvo_store or {}).get(key, [])))
+    if not dfl_lb:
+        print(f"  skipped: LB={lb} (no checkpoint)")
+        return None
+
+    series = []                      # (label, y, color, linestyle, lw, mdd)
+    for (res, lbl), c in zip(dfl_lb, _family_colors(DFL_COLORS, DFL_CMAP, len(dfl_lb))):
+        series.append((res, lbl, c, "-", 1.9))
+    for (res, lbl), c in zip(mdd_lb, _family_colors(MDD_COLORS, MDD_CMAP, len(mdd_lb))):
+        series.append((res, lbl, c, "--", 1.9))
+    for res, lbl in dmv_lb:
+        c, s = _bench_style(lbl)
+        series.append((res, lbl, c, s, 2.1))
+    for (res, lbl), c in zip(mvo_lb, _family_colors(MVO_COLORS, MVO_CMAP,
+                                                    len(mvo_lb), 0.5, 0.9)):
+        series.append((res, lbl, c, ":", 2.3))
+
+    fig, ax = plt.subplots(figsize=(13.5, 6.2))
+    drawn, worst = [], 0.0
+    for res, lbl, color, ls, lw in series:
+        eq   = build_equity_curve(res)
+        peak = np.maximum.accumulate(eq)
+        y    = (eq - peak) / (peak + 1e-10)
+        x    = (full_dates[test_start_idx:test_start_idx + len(y)]
+                if full_dates is not None and test_start_idx is not None
+                else np.arange(len(y)))
+        line, = ax.plot(x[:len(y)], y, color=color, linestyle=ls, linewidth=lw,
+                        solid_capstyle="round")
+        mdd = -y.min()
+        worst = max(worst, mdd)
+        drawn.append((mdd, line, f"{_fmt_n1_pct(lbl)}   MDD {mdd:.1%}"))
+
+    # Below the axes rather than inside it: ten entries cover the deepest curves
+    # wherever they are placed, and those curves are the point of the panel.
+    # Model order, not drawdown order, so the four families stay together.
+    fig.legend([l for _, l, _ in drawn], [t for _, _, t in drawn],
+               loc="upper center", bbox_to_anchor=(0.5, 0.045), ncol=5,
+               fontsize=8.5, frameon=False, columnspacing=1.6,
+               handlelength=2.6, handletextpad=0.6)
+
+    ax.axhline(0, color="#444", lw=0.9)
+    ax.set_ylim(-min(1.0, worst * 1.06), 0.015)
+    ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda v, _: f"{v:.0%}"))
+    ax.set_ylabel("Drawdown")
+    ax.set_xlabel("Date" if full_dates is not None else "Trading days")
+    ax.grid(alpha=0.25, lw=0.7)
+    for sp in ("top", "right"):
+        ax.spines[sp].set_visible(False)
+
+    if full_dates is not None:
+        import matplotlib.dates as mdates
+        ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y"))
+        ax.xaxis.set_major_locator(mdates.YearLocator())
+
+    tc_str = f"  |  TC={int(round(tc_rate*10000))}bps" if tc_rate > 0 else ""
+    ax.set_title(f"Drawdown by model  ({N_STOCKS} Industries, "
+                 f"Lookback = {lb}, $\\lambda$ = {lam_val}){tc_str}",
+                 fontsize=12.5, fontweight="bold", pad=10)
+    fig.tight_layout(rect=[0, 0.10, 1, 1])
+
+    tc_suffix = f"_tc{int(round(tc_rate*10000))}bps" if tc_rate > 0 else ""
+    h_tag     = f"_h{horizon}" if horizon is not None else ""
+    path = os.path.join(
+        PLOT_DIR,
+        f"drawdown_models_{N_STOCKS}_inds{h_tag}_LB{lb}_{lam_val}{tc_suffix}.png")
+    fig.savefig(path, bbox_inches="tight", dpi=450)
+    print(f"  saved: {path}")
+    plt.show() if show else plt.close(fig)
     return path

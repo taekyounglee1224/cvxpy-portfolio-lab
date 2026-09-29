@@ -36,7 +36,8 @@ import pandas as pd
 from benchmarks import attach_date_idx
 from carryforward import apply_carryforward, parse_lb
 from performance import apply_tc, build_equity_curve, compute_performance
-from plot_utils import plot_lambda_grid, plot_overall_comparison
+from plot_utils import (plot_lambda_grid, plot_model_drawdown,
+                        plot_overall_comparison)
 
 CKPT_DIR = "./checkpoint"
 RSLT_DIR = "./results"
@@ -217,6 +218,16 @@ def main():
                 dfl_store_cf, pto_mdd_idx, mvo_idx,
                 DELTA_LIST, LAM_LIST, LOOKBACK_LIST,
                 n_stocks, plot_dir, tc_rate=tc, **common)
+
+            # the four models alone, drawdown, at the representative loss weight;
+            # this one takes no benchmarks, so that entry is dropped
+            models_only = {k: v for k, v in common.items() if k != "bench_store"}
+            if tc == 0:
+                for lb in LOOKBACK_LIST:
+                    plot_model_drawdown(
+                        dfl_store_cf, pto_mdd_idx, mvo_idx,
+                        DELTA_LIST[0], 0.5, lb,
+                        n_stocks, plot_dir, tc_rate=tc, **models_only)
 
             # all four lambdas on one figure, per lookback, for both metrics
             for lb in LOOKBACK_LIST:
