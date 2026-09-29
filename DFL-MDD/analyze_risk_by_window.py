@@ -205,14 +205,21 @@ def main():
         folds  = make_folds(full_np, full_dates, args.horizon)
         stores = build_stores(n_stocks, args.horizon, full_np, folds)
 
-        parts = [analyse(n_stocks, args.horizon, stores, w, m)
-                 for m in METRICS for w in EVAL_WINS]
+        # one file per (universe, evaluation window, metric): each is a table a
+        # reader compares within, and mixing metrics in one file would put two
+        # different one-sided alternatives in the same column
+        parts, outs = [], []
+        for m in METRICS:
+            for w in EVAL_WINS:
+                part = analyse(n_stocks, args.horizon, stores, w, m)
+                num = part.select_dtypes("number").columns.difference(
+                    ["N", "H_train", "eval_window", "overlap_lags", "LB", "n"])
+                part[num] = part[num].round(ROUND)
+                out = (f"{RSLT_DIR}/{n_stocks}_inds_h{args.horizon}"
+                       f"_w{w}_{m.lower()}.csv")
+                part.to_csv(out, index=False, encoding="utf-8-sig")
+                parts.append(part); outs.append(out)
         df = pd.concat(parts, ignore_index=True)
-        num = df.select_dtypes("number").columns.difference(
-            ["N", "H_train", "eval_window", "overlap_lags", "LB", "n"])
-        df[num] = df[num].round(ROUND)
-        out = f"{RSLT_DIR}/{n_stocks}_inds_h{args.horizon}_risk_by_window.csv"
-        df.to_csv(out, index=False, encoding="utf-8-sig")
 
         col, colnw = f"significant({args.alpha:.2f})", f"significant_nw({args.alpha:.2f})"
         summ = (df.assign(win=df[col].eq("O"), loss=df[col].eq("X"),
@@ -226,7 +233,9 @@ def main():
               f"alpha={args.alpha} | plain vs Newey-West")
         print(f"{'='*88}")
         print(summ.to_string())
-        print(f"\n  saved: {out}")
+        print("\n  saved:")
+        for o in outs:
+            print(f"    {o}")
     return 0
 
 
