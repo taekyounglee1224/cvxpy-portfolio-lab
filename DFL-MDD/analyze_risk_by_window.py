@@ -1,5 +1,5 @@
 """
-Drawdown tests at several evaluation horizons, on the monthly strategy.
+Drawdown and Calmar tests at several evaluation horizons, on the monthly strategy.
 
 The strategy is unchanged: weights are set every 21 trading days and the daily
 path is the one the backtest produces. What changes is the window the drawdown
@@ -17,8 +17,15 @@ its p-values. Every test is therefore reported twice: the ordinary statistic and
 a Newey-West statistic with H/21 - 1 lags, which is the overlap length in units
 of the sliding step.
 
-  H0: mean drawdown of DFL-MDD >= that of the comparison
-  H1: strictly less
+Two metrics are tested per window. Drawdown is better when lower, Calmar when
+higher, so the one-sided alternative flips between them:
+
+  MDD     H0: mean drawdown of DFL-MDD >= comparison    H1: strictly less
+  Calmar  H0: mean Calmar of DFL-MDD <= comparison      H1: strictly greater
+
+Calmar over a window is the annualized return implied by that window divided by
+its drawdown. At 21 days that annualizes a single month and is correspondingly
+noisy; the 126- and 252-day windows are the ones to read.
 
 The drawdown is measured on the compounded path, and a date touched by two
 windows at a fold boundary is counted once. Both differ from the per-window
@@ -45,6 +52,8 @@ from make_overall_plots import (DELTA_LIST, LAM_LIST, LOOKBACK_LIST, N1_LIST,
 
 RSLT_DIR   = "./results"
 EVAL_WINS  = [21, 126, 252]
+METRICS    = ["MDD", "Calmar"]
+MDD_FLOOR  = 0.005          # 0.5%: below this the Calmar denominator is noise
 ALPHAS     = (0.10, 0.05, 0.01)
 ROUND      = 4
 
@@ -76,11 +85,15 @@ def daily_path(pairs):
     return s.sort_index()
 
 
-def rolling_mdd(path, starts, win):
-    """Max drawdown of the compounded path over `win` days from each start."""
-    idx = path.index.values
+def rolling_metric(path, starts, win, metric):
+    """`metric` of the compounded path over `win` days from each start.
+
+    MDD is a percentage; Calmar is the annualized return of the window over its
+    drawdown, which is why a window whose drawdown is negligible is dropped
+    rather than allowed to produce an unbounded ratio.
+    """
     val = path.values
-    pos = {d: i for i, d in enumerate(idx)}
+    pos = {d: i for i, d in enumerate(path.index.values)}
     out = {}
     for t in starts:
         i = pos.get(t)
@@ -88,7 +101,13 @@ def rolling_mdd(path, starts, win):
             continue
         eq   = np.cumprod(1.0 + val[i:i + win])
         peak = np.maximum.accumulate(eq)
-        out[t] = float(np.max((peak - eq) / peak)) * 100.0
+        mdd  = float(np.max((peak - eq) / peak))
+        if metric == "MDD":
+            out[t] = mdd * 100.0
+        else:
+            if mdd < MDD_FLOOR:
+                continue
+            out[t] = (float(eq[-1]) ** (252.0 / win) - 1.0) / mdd
     return pd.Series(out)
 
 
@@ -107,7 +126,7 @@ def nw_tstat(diff, lags):
     return t, stats.t.cdf(t, df=n - 1)          # P(T <= t): one-sided, DFL lower
 
 
-def analyse(n_stocks, horizon, stores, win):
+def analyse(n_stocks, horizon, stores, win, metric):
     dfl_store_cf, dfl_mvo_idx, pto_mdd_idx, mvo_idx, bench_store = stores
     by_lb = lambda pairs, lb: [(r, l) for r, l in pairs if parse_lb(l) == lb]
     lags  = max(win // REBAL - 1, 0)
@@ -137,22 +156,27 @@ def analyse(n_stocks, horizon, stores, win):
                                   f"hist-MVO (LB={lb})")],
                 }
 
-                a = rolling_mdd(base_path, starts, win)
+                a = rolling_metric(base_path, starts, win, metric)
                 for name, pairs in comps.items():
                     if not pairs:
                         continue
-                    b = rolling_mdd(daily_path(pairs), starts, win)
+                    b = rolling_metric(daily_path(pairs), starts, win, metric)
                     common = a.index.intersection(b.index)
                     if len(common) < 5:
                         continue
                     x, y = a.loc[common].values, b.loc[common].values
                     diff = x - y
 
+                    # DFL-MDD is better with a lower drawdown but a higher Calmar,
+                    # so the statistic is signed to favour it either way
+                    sgn = 1.0 if metric == "MDD" else -1.0
                     t_st, p2 = stats.ttest_rel(x, y)
+                    t_st *= sgn
                     p_low  = p2 / 2 if t_st < 0 else 1 - p2 / 2
-                    t_nw, p_nw = nw_tstat(diff, lags)
+                    t_nw, p_nw = nw_tstat(sgn * diff, lags)
 
-                    row = {"N": n_stocks, "H_train": horizon, "eval_window": win,
+                    row = {"N": n_stocks, "H_train": horizon, "metric": metric,
+                           "eval_window": win,
                            "overlap_lags": lags, "LB": lb, "lam": lam, "d_bar": n1,
                            "comparison": name, "n": int(len(x)),
                            "DFL-MDD": x.mean(), "other": y.mean(),
@@ -181,18 +205,19 @@ def main():
         folds  = make_folds(full_np, full_dates, args.horizon)
         stores = build_stores(n_stocks, args.horizon, full_np, folds)
 
-        parts = [analyse(n_stocks, args.horizon, stores, w) for w in EVAL_WINS]
+        parts = [analyse(n_stocks, args.horizon, stores, w, m)
+                 for m in METRICS for w in EVAL_WINS]
         df = pd.concat(parts, ignore_index=True)
         num = df.select_dtypes("number").columns.difference(
             ["N", "H_train", "eval_window", "overlap_lags", "LB", "n"])
         df[num] = df[num].round(ROUND)
-        out = f"{RSLT_DIR}/{n_stocks}_inds_h{args.horizon}_mdd_by_window.csv"
+        out = f"{RSLT_DIR}/{n_stocks}_inds_h{args.horizon}_risk_by_window.csv"
         df.to_csv(out, index=False, encoding="utf-8-sig")
 
         col, colnw = f"significant({args.alpha:.2f})", f"significant_nw({args.alpha:.2f})"
         summ = (df.assign(win=df[col].eq("O"), loss=df[col].eq("X"),
                           win_nw=df[colnw].eq("O"), loss_nw=df[colnw].eq("X"))
-                  .groupby(["eval_window", "comparison"])
+                  .groupby(["metric", "eval_window", "comparison"])
                   .agg(n_obs=("n", "mean"), cells=("win", "size"),
                        wins=("win", "sum"), losses=("loss", "sum"),
                        wins_nw=("win_nw", "sum"), losses_nw=("loss_nw", "sum")))
