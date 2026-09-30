@@ -96,16 +96,20 @@ def collect(n_stocks, horizon, lb, stores, folds):
     return sorted(rows, key=lambda r: r[1])
 
 
-def draw(rows, n_stocks, horizon, lb, out_dir):
+def draw(rows, n_stocks, horizon, lb, out_dir, with_duration=True):
     labels = [r[0] for r in rows]
     mdd    = np.array([r[1] for r in rows])
     dur    = np.array([r[2] for r in rows])
     is_dfl = [r[3] for r in rows]
     y      = np.arange(len(rows))
 
-    fig, (axm, axd) = plt.subplots(
-        1, 2, figsize=(12.4, 0.34 * len(rows) + 1.8),
-        sharey=True, gridspec_kw={"width_ratios": [2.15, 1]})
+    if with_duration:
+        fig, (axm, axd) = plt.subplots(
+            1, 2, figsize=(12.4, 0.34 * len(rows) + 1.8),
+            sharey=True, gridspec_kw={"width_ratios": [2.15, 1]})
+    else:
+        fig, axm = plt.subplots(figsize=(9.0, 0.34 * len(rows) + 1.8))
+        axd = None
 
     colors = [C_MODEL if f else C_OTHER for f in is_dfl]
     axm.barh(y, mdd, color=colors, height=0.72)
@@ -119,26 +123,30 @@ def draw(rows, n_stocks, horizon, lb, out_dir):
     axm.set_yticklabels(labels, fontsize=8.5)
     axm.invert_yaxis()
 
-    axd.barh(y, dur, color=C_DUR, height=0.72)
-    for i, v in enumerate(dur):
-        axd.text(v + dur.max() * 0.015, i, f"{v:,}", va="center",
-                 fontsize=8, color="#2F5F80")
-    axd.set_xlim(0, dur.max() * 1.18)
-    axd.set_xlabel("Days from peak to trough", fontsize=10)
+    if axd is not None:
+        axd.barh(y, dur, color=C_DUR, height=0.72)
+        for i, v in enumerate(dur):
+            axd.text(v + dur.max() * 0.015, i, f"{v:,}", va="center",
+                     fontsize=8, color="#2F5F80")
+        axd.set_xlim(0, dur.max() * 1.18)
+        axd.set_xlabel("Days from peak to trough", fontsize=10)
 
-    for ax in (axm, axd):
+    for ax in ([axm] if axd is None else [axm, axd]):
         ax.grid(axis="x", alpha=0.22, lw=0.7)
         for sp in ("top", "right", "left"):
             ax.spines[sp].set_visible(False)
 
-    fig.suptitle(f"Configurations ranked by maximum drawdown, and how long it took"
-                 f"  ({n_stocks} Industries, Lookback = {lb})",
+    fig.suptitle(("Configurations ranked by maximum drawdown, and how long it took"
+                  if axd is not None else
+                  "Configurations ranked by maximum drawdown")
+                 + f"  ({n_stocks} Industries, Lookback = {lb})",
                  fontsize=12.5, fontweight="bold")
     fig.tight_layout(rect=[0, 0, 1, 0.985])
 
     os.makedirs(out_dir, exist_ok=True)
+    stem = "ranked_mdd_duration" if axd is not None else "ranked_mdd"
     path = os.path.join(
-        out_dir, f"ranked_mdd_duration_{n_stocks}_inds_h{horizon}_LB{lb}.png")
+        out_dir, f"{stem}_{n_stocks}_inds_h{horizon}_LB{lb}.png")
     fig.savefig(path, bbox_inches="tight", dpi=450)
     plt.close(fig)
     print(f"  saved: {path}  ({len(rows)} series)")
@@ -159,7 +167,8 @@ def main():
         for lb in (args.lb or [252, 504]):
             rows = collect(n_stocks, args.horizon, lb, stores, folds)
             if rows:
-                draw(rows, n_stocks, args.horizon, lb, PLOT_DIR)
+                draw(rows, n_stocks, args.horizon, lb, PLOT_DIR, True)
+                draw(rows, n_stocks, args.horizon, lb, PLOT_DIR, False)
     return 0
 
 
